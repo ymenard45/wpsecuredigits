@@ -1,0 +1,36 @@
+jQuery(document).ready(function ($) {
+    $('form.login').on('submit', function (e) {
+        e.preventDefault();
+
+        let info = {
+            checkboxEnabled: $(this).data('checkbox-enabled') === 1,
+            maxAttempts: $(this).data('max-attempts'),
+            remainingAttempts: 0, // Remplacez par la valeur réelle
+            failureCount: 0, // Remplacez par la valeur réelle
+            totalAttempts: 0, // Remplacez par la valeur réelle
+        };
+
+        showPopup(info);
+
+        setTimeout(() => {
+            $(this).off('submit').submit();
+        }, 3000);
+    });
+});
+
+function showPopup(info) {
+    let message = '';
+
+    if (info.checkboxEnabled) {
+        message = "Vous n'êtes pas limité.\n";
+    } else {
+        message = `Il vous reste ${info.remainingAttempts} tentatives.\n`;
+    }
+
+    message += `Nombre de tentatives autorisées : ${info.maxAttempts}\n`;
+    message += `Nombre de tentatives restantes : ${info.remainingAttempts}\n`;
+    message += `Compteur des échecs : ${info.failureCount}\n`;
+    message += `Nombre de tentatives de connexion globales (réussies ou pas) : ${info.totalAttempts}\n`;
+
+    alert(message);
+}
