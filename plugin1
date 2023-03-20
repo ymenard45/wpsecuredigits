@@ -497,34 +497,10 @@ function secuwp_send_email($user, $code) {
 
 
 //filtre login_enqueue_scripts afin d'ajouter un fichier JavaScript personnalisé sur la page de connexion:
-function secuwp_enqueue_scripts() {
-    if (strpos($_SERVER['REQUEST_URI'], 'wp-login.php') !== false) {
-        wp_enqueue_script('secuwp-login-popup', plugins_url('secuwp-login-popup.js', __FILE__), array('jquery'), '1.0.0', true);
-    }
-
+ 
+  function secuwp_enqueue_scripts() {
+    wp_enqueue_script('secuwp-login-popup', plugin_dir_url(__FILE__) . 'secuwp-login-popup.js', array('jquery'), '1.0.0', true);
+}
 add_action('wp_enqueue_scripts', 'secuwp_enqueue_scripts');
-
 add_filter('login_form_bottom', 'secuwp_login_form_data');
  
-<script>
-jQuery(document).ready(function ($) {
-    $('form#loginform').on('submit', function (e) {
-        e.preventDefault();
-
-        let form = $(this);
-        let info = {
-            checkboxEnabled: form.data('checkbox-enabled') === 1,
-            maxAttempts: form.data('max-attempts'),
-            remainingAttempts: 0, // Remplacez par la valeur réelle
-            failureCount: 0, // Remplacez par la valeur réelle
-            totalAttempts: 0, // Remplacez par la valeur réelle
-        };
-
-        showPopup(info);
-
-        setTimeout(() => {
-            form.off('submit').submit();
-        }, 3000);
-    });
-});
-</script>
