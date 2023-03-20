@@ -480,16 +480,19 @@ add_filter('login_form_bottom', 'secuwp_login_form_data');
 function secuwp_send_email($user, $code) {
     $remaining_attempts = get_user_meta($user->ID, 'wp_secure_login_remaining_attempts', true);
     $checkbox_enabled = get_option('wp_secure_login_limit_attempts', 0);
+    $code_validity = get_option('wp_secure_login_code_validity', 5);
 
     $to = $user->user_email;
     $subject = 'Code de vérification';
-    $message = "Voici votre code de vérification : {$code}\n\n";
+    $message = "<p>Voici votre code de vérification : <strong>{$code}</strong></p>";
+    $message .= "<p>Ce code est valide pour {$code_validity} minutes.</p>";
 
     if ($checkbox_enabled) {
-        $message .= "Il vous reste {$remaining_attempts} tentatives.\n";
+        $message .= "<p>Il vous reste {$remaining_attempts} tentatives.</p>";
     }
 
-    wp_mail($to, $subject, $message);
+    $headers = array('Content-Type: text/html; charset=UTF-8');
+    wp_mail($to, $subject, $message, $headers);
 }
 
 
@@ -498,46 +501,30 @@ function secuwp_enqueue_scripts() {
     if (strpos($_SERVER['REQUEST_URI'], 'wp-login.php') !== false) {
         wp_enqueue_script('secuwp-login-popup', plugins_url('secuwp-login-popup.js', __FILE__), array('jquery'), '1.0.0', true);
     }
-}
+
 add_action('wp_enqueue_scripts', 'secuwp_enqueue_scripts');
 
-//attributs data-* dans le formulaire de connexion. Pour ce faire, ajoutez un filtre login_form_bottom dans secuwp-functions.php
-/* function secuwp_login_form_data($content) {
-    $checkbox_enabled = get_option('wp_secure_login_limit_attempts', 0);
-    $max_attempts = get_option('wp_secure_login_max_attempts', 3);
-    // Ajoutez d'autres informations que vous souhaitez afficher ici
-
-    $data = "
-        data-checkbox-enabled='{$checkbox_enabled}'
-        data-max-attempts='{$max_attempts}'
-    ";
-
-    return $content . $data;
-} */
 add_filter('login_form_bottom', 'secuwp_login_form_data');
+ 
+<script>
+jQuery(document).ready(function ($) {
+    $('form#loginform').on('submit', function (e) {
+        e.preventDefault();
 
-/*
-Dans cet exemple, après la validation du mot de passe, le formulaire de connexion est intercepté pour afficher la fenêtre pop-up avec les informations demandées. Une fois que la fenêtre pop-up est affichée, le formulaire est soumis après un délai de 3 secondes.
+        let form = $(this);
+        let info = {
+            checkboxEnabled: form.data('checkbox-enabled') === 1,
+            maxAttempts: form.data('max-attempts'),
+            remainingAttempts: 0, // Remplacez par la valeur réelle
+            failureCount: 0, // Remplacez par la valeur réelle
+            totalAttempts: 0, // Remplacez par la valeur réelle
+        };
 
-Remarque : Les valeurs de remainingAttempts, failureCount et totalAttempts sont définies sur 0 dans cet exemple, car il est difficile de les récupérer sans connaître la logique exacte de votre plugin. Vous devrez les récupérer en fonction de la logique de votre plugin et les ajouter aux attributs data-* du formulaire de connexion dans secuwp-functions.php.
-*/
+        showPopup(info);
 
-/* 
-function showPopup(info) {
-    let message = '';
-
-    if (info.checkboxEnabled) {
-        message = "Vous n'êtes pas limité.\n";
-    } else {
-        message = `Il vous reste ${info.remainingAttempts} tentatives.\n`;
-    }
-
-    message += `Nombre de tentatives autorisées : ${info.maxAttempts}\n`;
-    message += `Nombre de tentatives restantes : ${info.remainingAttempts}\n`;
-    message += `Compteur des échecs : ${info.failureCount}\n`;
-    message += `Nombre de tentatives de connexion globales (réussies ou pas) : ${info.totalAttempts}\n`;
-
-    alert(message);
-}
-
- */
+        setTimeout(() => {
+            form.off('submit').submit();
+        }, 3000);
+    });
+});
+</script>
