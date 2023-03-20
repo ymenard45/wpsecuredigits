@@ -327,8 +327,8 @@ function wp_secure_login_check_code($user, $code) {
 //  fonction pour envoyer le code par e-mail en utilisant wp_mail
  
 function wp_secure_login_send_code($user) {
+      $account_disabled = false;   // declaration variable avant utilisation
  
-// proposition oepnai
  
        $limit_attempts = get_option('wp_secure_login_limit_attempts', 0);
 
@@ -467,7 +467,7 @@ $code = generate_numeric_code(6); // Génère un code numérique de 6 chiffres
 function secuwp_login_form_data($content) {
     $checkbox_enabled = get_option('wp_secure_login_limit_attempts', 0);
     $max_attempts = get_option('wp_secure_login_max_attempts', 3);
-
+    
     $data = "
         data-checkbox-enabled='{$checkbox_enabled}'
         data-max-attempts='{$max_attempts}'
@@ -477,30 +477,61 @@ function secuwp_login_form_data($content) {
 }
 add_filter('login_form_bottom', 'secuwp_login_form_data');
 
-function secuwp_send_email($user, $code) {
-    $remaining_attempts = get_user_meta($user->ID, 'wp_secure_login_remaining_attempts', true);
-    $checkbox_enabled = get_option('wp_secure_login_limit_attempts', 0);
-    $code_validity = get_option('wp_secure_login_code_validity', 5);
-
-    $to = $user->user_email;
+function secuwp_send_email($user_id, $user_email, $code, $expiry_time) {
+    $validity_minutes = get_option('wp_secure_login_code_validity', 5);
     $subject = 'Code de vérification';
-    $message = "<p>Voici votre code de vérification : <strong>{$code}</strong></p>";
-    $message .= "<p>Ce code est valide pour {$code_validity} minutes.</p>";
+    $message = "Voici votre code de vérification pour vous connecter à votre compte : <strong>{$code}</strong><br>";
+    $message .= "Ce code est valable pendant {$validity_minutes} minutes.";
 
-    if ($checkbox_enabled) {
-        $message .= "<p>Il vous reste {$remaining_attempts} tentatives.</p>";
-    }
-
-    $headers = array('Content-Type: text/html; charset=UTF-8');
-    wp_mail($to, $subject, $message, $headers);
+    wp_mail($user_email, $subject, $message, ['Content-Type: text/html; charset=UTF-8']);
 }
 
 
 //filtre login_enqueue_scripts afin d'ajouter un fichier JavaScript personnalisé sur la page de connexion:
  
-  function secuwp_enqueue_scripts() {
-    wp_enqueue_script('secuwp-login-popup', plugin_dir_url(__FILE__) . 'secuwp-login-popup.js', array('jquery'), '1.0.0', true);
+
+function secuwp_get_attempt_info() {
+    // Replace the values below with actual values from the database
+    $info = array(
+        'checkboxEnabled' => 1,
+        'maxAttempts' => 3,
+        'remainingAttempts' => 2,
+        'failureCount' => 1,
+        'totalAttempts' => 4,
+    );
+
+    echo json_encode($info);
+    //wp_die();
 }
-add_action('wp_enqueue_scripts', 'secuwp_enqueue_scripts');
-add_filter('login_form_bottom', 'secuwp_login_form_data');
+add_action('wp_ajax_nopriv_secuwp_get_attempt_info', 'secuwp_get_attempt_info');
  
+/*  
+function secuwp_enqueue_scripts() {
+    //wp_enqueue_style('secuwp-login', plugin_dir_url(__FILE__) . 'secuwp-login.css');
+    wp_localize_script('secuwp-login-popup', 'secuwp_ajax_object', array('ajax_url' => admin_url('admin-ajax.php')));
+	wp_enqueue_script('secuwp-login', plugin_dir_url(__FILE__) . 'secuwp-login.js', array('jquery'), '1.0.0', true);
+
+    // Ajout de la variable ajaxurl
+    wp_localize_script('secuwp-login', 'secuwp_ajax_object', array('ajaxurl' => admin_url('admin-ajax.php')));
+
+    // Charger secuwp-login-popup.js seulement sur la page de connexion
+    if (wp_script_is('secuwp-login', 'enqueued')) {
+        wp_enqueue_script('secuwp-login-popup', plugin_dir_url(__FILE__) . 'secuwp-login.js', array('jquery'), '1.0.0', true);
+    }
+}
+add_action('wp_ajax_nopriv_secuwp_get_attempt_info', 'secuwp_get_attempt_info_callback');
+add_action('wp_ajax_secuwp_get_attempt_info', 'secuwp_get_attempt_info_callback');
+ */
+ 
+function secuwp_enqueue_login_scripts() {
+    wp_register_script('secuwp-login', plugins_url('secuwp-login.js', __FILE__), array('jquery'), '1.0.0', true);
+    wp_enqueue_script('secuwp-login');
+
+    // Ajoutez cette ligne juste après wp_enqueue_script
+    wp_localize_script('secuwp-login', 'secuwp_vars', array(
+        'ajaxurl' => admin_url('admin-ajax.php')
+    ));
+}
+add_action('login_enqueue_scripts', 'secuwp_enqueue_login_scripts');
+
+
