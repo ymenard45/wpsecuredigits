@@ -1,1 +1,538 @@
 
+<?php
+/**
+ * Plugin Name: WP Secure Login GA
+ * Description: Ajoute une double authentification par code numérique à la page de connexion WordPress.
+ * Version: 2.0
+ * Author:  Y.MENARD
+ * License: GPL v2 or later
+ * License URI: https://sitewebprodesign.fr
+ */
+
+// Empêche l'accès direct au fichier
+defined('ABSPATH') or die('Accès non autorisé');
+
+session_start();
+
+// Initialiser le compteur d'essais
+if (!isset($_SESSION['attempt_counter'])) {
+    $_SESSION['attempt_counter'] = 0;
+}
+
+// creation du menu
+function wp_secure_login_menu() {
+    add_submenu_page(
+        'options-general.php',
+        'WP Secure Login',
+        'Secure Login with Digit',
+        'manage_options',
+        'wp-secure-login',
+        'wp_secure_login_options_page'
+    );
+}
+
+add_action('admin_menu', 'wp_secure_login_menu');
+
+// formulaire du menu
+function wp_secure_login_options_page() {
+    ?>
+    <div class="wrap">
+        <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
+        <form action="options.php" method="post">
+            <?php
+            settings_fields('wp_secure_login');
+            do_settings_sections('wp-secure-login');
+            ?>
+
+            <table class="form-table">
+                <tr valign="top">
+                    <th scope="row">Longueur du code numérique</th>
+                    <td>
+                        <input type="number" min="4" max="8" name="wp_secure_login_digit_length" value="<?php echo esc_attr(get_option('wp_secure_login_digit_length', 6)); ?>" />
+                    </td>
+                </tr>
+                <tr valign="top">
+                    <th scope="row">Durée de vie du code (en minutes)</th>
+                    <td>
+                        <input type="number" min="3" max="15" name="wp_secure_login_code_lifetime" value="<?php echo esc_attr(get_option('wp_secure_login_code_lifetime', 5)); ?>" />
+                    </td>
+                </tr>
+                <tr valign="top">
+                    <th scope="row">URL du logo personnalisé</th>
+                    <td>
+                        <input type="text" size="70" name="wp_secure_login_custom_logo_url" value="<?php echo esc_attr(get_option('wp_secure_login_custom_logo_url', '')); ?>" />
+                    </td>
+                </tr>
+                <tr valign="top">
+                    <th scope="row">Limiter les tentatives de connexion</th>
+                    <td>
+                        <input type="checkbox" name="wp_secure_login_limit_attempts" value="1" <?php checked(get_option('wp_secure_login_limit_attempts', 0), 1); ?> />
+                    </td>
+                </tr>
+                <tr valign="top">
+                    <th scope="row">Nombre de tentatives avant désactivation du compte</th>
+                    <td>
+                        <input type="number" min="1" name="wp_secure_login_max_attempts" value="<?php echo esc_attr(get_option('wp_secure_login_max_attempts', 3)); ?>" />
+                    </td>
+                </tr>
+            </table>
+
+            <?php
+            submit_button('Enregistrer les modifications');
+            ?>
+        </form>
+    </div>
+    <?php
+}
+
+// Vérifier si la constante WP_SECURE_LOGIN est définie
+if (!defined('WP_SECURE_LOGIN')) {
+    define('WP_SECURE_LOGIN', true);
+
+    // Démarrer une session si elle n'est pas déjà démarrée
+    if (!session_id()) {
+        session_start();
+    }
+
+    // Ajouter des actions pour les hooks 'wp_authenticate' et 'wp_login'
+    add_action('wp_authenticate', 'wp_secure_login_check_attempts', 1, 2);
+    add_action('wp_login', 'wp_secure_login_reset_attempts', 10, 2);
+
+    // Ajouter des actions pour les hooks 'wp_logout' et 'init'
+    add_action('wp_logout', 'wp_secure_login_logout');
+    add_action('init', 'wp_secure_login_init');
+}
+
+// Vérifier le nombre de tentatives de connexion
+function wp_secure_login_check_attempts($username, $password) {
+    $max_attempts = 3;
+    $lockout_duration = 1800; // 30 minutes
+
+    if ($_SESSION['wp_secure_login_attempts'] >= $max_attempts) {
+        $time_since_last_attempt = time() - $_SESSION['wp_secure_login_last_attempt_time'];
+        if ($time_since_last_attempt < $lockout_duration) {
+            $time_remaining = $lockout_duration - $time_since_last_attempt;
+            wp_die("Trop de tentatives de connexion. Veuillez attendre {$time_remaining} secondes avant d'essayer à nouveau.");
+        } else {
+            $_SESSION['wp_secure_login_attempts'] = 0;
+        }
+    }
+}
+
+
+// Fonction de déconnexion
+function wp_secure_login_logout() {
+    if (session_id()) {
+        session_destroy();
+    }
+}
+
+
+// Réinitialiser le nombre de tentatives de connexion après une connexion réussie
+function wp_secure_login_reset_attempts($user_login, $user) {
+    $_SESSION['wp_secure_login_attempts'] = 0;
+    $_SESSION['wp_secure_login_last_attempt_time'] = time();
+}
+
+
+// Initialiser la fonctionnalité de sécurité
+// enregistrements des paramètres et preparation des hooks
+
+    if (!isset($_SESSION['wp_secure_login_attempts'])) {
+        $_SESSION['wp_secure_login_attempts'] = 0;
+    }
+    if (!isset($_SESSION['wp_secure_login_last_attempt_time'])) {
+        $_SESSION['wp_secure_login_last_attempt_time'] = time();
+    }
+ 
+
+
+function wp_secure_login_init() {
+    register_setting('wp_secure_login', 'wp_secure_login_digit_length');
+    register_setting('wp_secure_login', 'wp_secure_login_code_lifetime');
+    register_setting('wp_secure_login', 'wp_secure_login_custom_logo_url');
+    register_setting('wp_secure_login', 'wp_secure_login_limit_attempts');
+    register_setting('wp_secure_login', 'wp_secure_login_max_attempts');
+	 
+    
+    // Hook pour afficher le champ de saisie du code lors de la connexion
+    //add_action('login_form', 'wp_secure_login_display_code_field', 999);
+	    
+    // Hook pour vérifier le code saisi lors de la tentative de connexion
+    //add_filter('authenticate', 'wp_secure_login_authenticate', 10, 3);
+}
+
+add_action('admin_init', 'wp_secure_login_init');
+
+
+// champ de saisie du code
+function wp_secure_login_display_code_field() {
+    ?>
+    <p>
+        <label for="wp_secure_login_code">
+            Code de vérification<br />
+            <input type="text" name="wp_secure_login_code" id="wp_secure_login_code" class="input" size="20" />
+        </label>
+    </p>
+    <?php
+}
+
+ add_action('login_form', 'wp_secure_login_display_code_field');
+/* 
+function wp_secure_login_handle_authentication($user, $password) {
+    
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        return $user;
+    }
+
+    if ($user instanceof WP_Error) {
+        return $user;
+    }
+    
+    $is_disabled = get_user_meta($user->ID, 'wp_secure_login_account_disabled', true);
+    if ($is_disabled) {
+        return new WP_Error('account_disabled', '<strong>ERREUR</strong>: Votre compte a été désactivé. Veuillez contacter l\'administrateur du site.');
+    }
+	
+    if (wp_check_password($password, $user->user_pass, $user->ID)) {
+        $code = isset($_POST['wp_secure_login_code']) ? $_POST['wp_secure_login_code'] : '';
+
+        if (empty($code)) {
+            $remaining_attempts = get_user_meta($user->ID, 'wp_secure_login_remaining_attempts', true);
+            if ($remaining_attempts === '') {
+                $max_attempts = get_option('wp_secure_login_max_attempts', 3);
+                update_user_meta($user->ID, 'wp_secure_login_remaining_attempts', $max_attempts);
+            }
+            wp_secure_login_send_code($user);
+            $error = new WP_Error();
+            $error->add('code_sent', 'Un code de vérification a été envoyé à votre adresse e-mail. Veuillez saisir ce code pour vous connecter.');
+            return $error;
+        }
+    } else {
+        return new WP_Error('incorrect_password', '<strong>ERREUR</strong>: Le mot de passe que vous avez saisi pour l\'adresse e-mail est incorrect.');
+    }
+
+    if (wp_secure_login_check_code($user, $code)) {
+        delete_user_meta($user->ID, 'wp_secure_login_remaining_attempts');
+        return $user;
+    } else {
+        $remaining_attempts = get_user_meta($user->ID, 'wp_secure_login_remaining_attempts', true);
+        $remaining_attempts = max(0, $remaining_attempts - 1);
+        update_user_meta($user->ID, 'wp_secure_login_remaining_attempts', $remaining_attempts);
+        $error = new WP_Error();
+        $error->add('incorrect_code', '<strong>ERREUR</strong>: Le code de vérification est incorrect.');
+
+        if ($remaining_attempts <= 0) {
+            update_user_meta($user->ID, 'wp_secure_login_account_disabled', 1);
+            wp_secure_login_send_account_disabled_email($user);
+            $error->add('account_disabled', 'Votre compte a été désactivé suite à trop de tentatives de connexion échouées. Veuillez contacter l\'administrateur du site pour réactiver votre compte.');
+        }
+
+        return $error;
+    }
+}
+*/
+function wp_secure_login_handle_authentication($user, $password) {
+ 
+ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        return $user;
+    }
+
+    if ($user instanceof WP_Error) {
+        return $user;
+    }
+
+    $is_disabled = get_user_meta($user->ID, 'wp_secure_login_account_disabled', true);
+    if ($is_disabled) {
+        return new WP_Error('account_disabled', '<strong>ERREUR</strong>: Votre compte a été désactivé. Veuillez contacter l\'administrateur du site.');
+    }
+
+    if (wp_check_password($password, $user->user_pass, $user->ID)) {
+        $code = isset($_POST['wp_secure_login_code']) ? $_POST['wp_secure_login_code'] : '';
+        $max_attempts = get_option('wp_secure_login_max_attempts', 3); // Récupère le nombre de tentatives à partir des options
+
+        if (empty($code)) {
+            $remaining_attempts = get_user_meta($user->ID, 'wp_secure_login_remaining_attempts', true);
+            if ($remaining_attempts === '') {
+                update_user_meta($user->ID, 'wp_secure_login_remaining_attempts', $max_attempts);
+            }
+            wp_secure_login_send_code($user);
+            $error = new WP_Error();
+            $error->add('code_sent', 'Un code de vérification a été envoyé à votre adresse e-mail. Veuillez saisir ce code pour vous connecter.');
+            return $error;
+        }
+    } else {
+        return new WP_Error('incorrect_password', '<strong>ERREUR</strong>: Le mot de passe que vous avez saisi pour l\'adresse e-mail est incorrect.');
+    }
+
+    if (wp_secure_login_check_code($user, $code)) {
+        delete_user_meta($user->ID, 'wp_secure_login_remaining_attempts');
+        return $user;
+    } else {
+        $remaining_attempts = get_user_meta($user->ID, 'wp_secure_login_remaining_attempts', true);
+        $remaining_attempts = max(0, $remaining_attempts - 1);
+        update_user_meta($user->ID, 'wp_secure_login_remaining_attempts', $remaining_attempts);
+        $error = new WP_Error();
+        $error->add('incorrect_code', '<strong>ERREUR</strong>: Le code de vérification est incorrect.');
+
+        if ($remaining_attempts <= 0) {
+            update_user_meta($user->ID, 'wp_secure_login_account_disabled', 1);
+            wp_secure_login_send_account_disabled_email($user);
+            $error->add('account_disabled', 'Votre compte a été désactivé suite à trop de tentatives de connexion échouées. Veuillez contacter l\'administrateur du site pour réactiver votre compte.');
+        }
+
+        return $error;
+    }
+}
+
+add_filter('wp_authenticate_user', 'wp_secure_login_handle_authentication', 10, 2);
+
+function wp_secure_login_send_account_disabled_email($user) {
+    // Préparer l'email
+    $to = $user->user_email;
+    $subject = 'Votre compte a été désactivé sur ' . get_bloginfo('name');
+    $headers = array('Content-Type: text/html; charset=UTF-8');
+
+    $message = '<p>Bonjour ' . $user->display_name . ',</p>';
+    $message .= '<p>Votre compte sur ' . get_bloginfo('name') . ' a été désactivé suite à trop de tentatives de connexion échouées avec un code de vérification incorrect.</p>';
+    $message .= '<p>Veuillez contacter l\'administrateur du site pour réactiver votre compte.</p>';
+    $message .= '<p>Merci,</p>';
+    $message .= '<p>L\'équipe de ' . get_bloginfo('name') . '</p>';
+
+    // Envoyer l'email
+    wp_mail($to, $subject, $message, $headers);
+}
+
+
+// Vérifier si le code saisi est valide
+function wp_secure_login_check_code($user, $code) {
+    // Vérifiez si le code saisi correspond au code envoyé à l'utilisateur
+    $stored_code = get_user_meta($user->ID, 'wp_secure_login_code', true);
+    $code_expiration = get_user_meta($user->ID, 'wp_secure_login_code_expires', true);
+
+    // Vérifiez si le code correspond et n'est pas expiré
+    if ($code === $stored_code && time() < $code_expiration) {
+        return true;
+    } else {
+        return false;
+    }
+	if (empty($code)) {
+    $max_attempts = get_option('wp_secure_login_max_attempts', 3);
+    update_user_meta($user->ID, 'wp_secure_login_remaining_attempts', $max_attempts);
+ //YM   wp_secure_login_send_code($user);
+    // ...
+	}
+}
+
+
+//  fonction pour envoyer le code par e-mail en utilisant wp_mail
+ 
+function wp_secure_login_send_code($user) {
+      $account_disabled = false;   // declaration variable avant utilisation
+ 
+ 
+       $limit_attempts = get_option('wp_secure_login_limit_attempts', 0);
+
+    if ($limit_attempts) {
+        $max_attempts = get_option('wp_secure_login_max_attempts', 3);
+        $remaining_attempts = get_user_meta($user->ID, 'wp_secure_login_remaining_attempts', true);
+        $remaining_attempts = ($remaining_attempts === '') ? $max_attempts : $remaining_attempts;
+
+        $message = "Il vous reste {$remaining_attempts} tentatives avant désactivation.";
+    } else {
+        $max_attempts = 999;
+        $message = "Vous n'êtes pas limité.";
+    }
+
+    update_user_meta($user->ID, 'wp_secure_login_remaining_attempts', $remaining_attempts);
+
+   //
+   $code_length = get_option('wp_secure_login_digit_length', 6);
+    $generated_code = wp_secure_login_generate_numeric_code($code_length);
+    // ... [Reste de la fonction wp_secure_login_send_code()]
+ 
+    $code_lifetime = get_option('wp_secure_login_code_lifetime', 5);
+    $custom_logo_url = get_option('wp_secure_login_custom_logo_url', '');
+    $max_attempts = get_option('wp_secure_login_max_attempts', 3);
+    
+    // Stocker le code et l'heure d'expiration dans les métadonnées utilisateur
+    update_user_meta($user->ID, 'wp_secure_login_code', $generated_code);
+    update_user_meta($user->ID, 'wp_secure_login_code_expires', time() + $code_lifetime * 60);
+ 
+ 
+    // Préparer l'email
+    $to = $user->user_email;
+    $subject = 'Code de vérification pour ' . get_bloginfo('name');
+    $headers = array('Content-Type: text/html; charset=UTF-8');
+
+    $message = '<div style="text-align: center;">';
+    if (!empty($custom_logo_url)) {
+        $message .= '<img src="' . esc_url($custom_logo_url) . '" alt="' . esc_attr(get_bloginfo('name')) . '" style="max-width: 100%;" />';
+    }
+    $message .= '<div style="margin: 60px 0;"><span style="font-size: 24px; background-color: black; color: white; padding: 10px;">' . $generated_code . '</span></div>';
+    $message .= '<p style="margin: 60px 0;">Ce code est valable pour ' . $code_lifetime . ' minutes.</p>';
+    $disable_account = get_option('wp_secure_login_disable_account', false);
+	 
+	echo '<script type="text/javascript">window.alert("'.$message.'");</script>';
+ 
+    if ($account_disabled) {
+        $message = "Vous n'êtes pas limité";
+        $max_attempts = 999;
+    } else {
+        $max_attempts = get_option('wp_secure_login_max_attempts', 3);
+        $message = "Il vous reste " . $max_attempts . " tentatives avant désactivation";
+    }
+
+    $message .= '</div>';
+    
+    // Envoyer l'email
+    wp_mail($to, $subject, $message, $headers);
+}
+
+
+// personnaliser le logo sur la page de connexion
+
+function wp_secure_login_custom_login_logo() {
+    $custom_logo_url = get_option('wp_secure_login_custom_logo_url', '');
+
+    if (!empty($custom_logo_url)) {
+        ?>
+        <style type="text/css">
+            #login h1 a,
+            .login h1 a {
+                background-image: url(<?php echo esc_url($custom_logo_url); ?>);
+				background-size: contain;
+				max-width: 400px;
+				width: 100%;
+            	display: flex;
+				justify-content: center;
+				align-items: center;
+				pointer-events: none;
+            }
+        </style>
+    <script type="text/javascript">
+        document.addEventListener('DOMContentLoaded', function() {
+            var loginHeader = document.getElementById('login');
+            if (loginHeader) {
+                var logoAnchor = loginHeader.querySelector('h1 a');
+                if (logoAnchor) {
+                    logoAnchor.href = '#';
+                    logoAnchor.removeAttribute('title');
+                }
+            }
+        });
+    </script>
+    <?php
+    }
+}
+add_action('login_enqueue_scripts', 'wp_secure_login_custom_login_logo');
+
+
+
+
+/* anonymise les messages wordpress */
+
+function wp_secure_login_anonymize_auth_error($user, $password) {
+    if ($user instanceof WP_Error) {
+        if ($user->get_error_code() == 'incorrect_password' || $user->get_error_code() == 'invalid_username') {
+            $user = new WP_Error();
+            $user->add('incorrect_credentials', '<strong>ERREUR</strong>: Les informations d\'identification fournies ne sont pas valides.');
+        }
+    }
+    return $user;
+}
+add_filter('wp_authenticate_user', 'wp_secure_login_anonymize_auth_error', 10, 2);
+
+// calcul du code// Générer un code numérique en fonction de la longueur demandée
+// Générer un code numérique en fonction de la longueur demandée
+function wp_secure_login_generate_numeric_code($length) {
+    $code = '';
+    for ($i = 0; $i < $length; $i++) {
+        $code .= mt_rand(0, 9);
+    }
+    return $code;
+}
+function generate_numeric_code($length) {
+    $result = '';
+    for ($i = 0; $i < $length; $i++) {
+        $result .= rand(0, 9);
+    }
+    return $result;
+}
+
+$code = generate_numeric_code(6); // Génère un code numérique de 6 chiffres
+
+
+// fonctions pour tests et affichage fenetre popup
+
+function secuwp_login_form_data($content) {
+    $checkbox_enabled = get_option('wp_secure_login_limit_attempts', 0);
+    $max_attempts = get_option('wp_secure_login_max_attempts', 3);
+    
+    $data = "
+        data-checkbox-enabled='{$checkbox_enabled}'
+        data-max-attempts='{$max_attempts}'
+    ";
+
+    return $content . $data;
+}
+add_filter('login_form_bottom', 'secuwp_login_form_data');
+
+function secuwp_send_email($user_id, $user_email, $code, $expiry_time) {
+    $validity_minutes = get_option('wp_secure_login_code_validity', 5);
+    $subject = 'Code de vérification';
+    $message = "Voici votre code de vérification pour vous connecter à votre compte : <strong>{$code}</strong><br>";
+    $message .= "Ce code est valable pendant {$validity_minutes} minutes.";
+
+    wp_mail($user_email, $subject, $message, ['Content-Type: text/html; charset=UTF-8']);
+}
+
+
+//filtre login_enqueue_scripts afin d'ajouter un fichier JavaScript personnalisé sur la page de connexion:
+ 
+
+function secuwp_get_attempt_info() {
+    // Replace the values below with actual values from the database
+    $info = array(
+        'checkboxEnabled' => 1,
+        'maxAttempts' => 3,
+        'remainingAttempts' => 2,
+        'failureCount' => 1,
+        'totalAttempts' => 4,
+    );
+
+    echo json_encode($info);
+    //wp_die();
+}
+add_action('wp_ajax_nopriv_secuwp_get_attempt_info', 'secuwp_get_attempt_info');
+ 
+/*  
+function secuwp_enqueue_scripts() {
+    //wp_enqueue_style('secuwp-login', plugin_dir_url(__FILE__) . 'secuwp-login.css');
+    wp_localize_script('secuwp-login-popup', 'secuwp_ajax_object', array('ajax_url' => admin_url('admin-ajax.php')));
+	wp_enqueue_script('secuwp-login', plugin_dir_url(__FILE__) . 'secuwp-login.js', array('jquery'), '1.0.0', true);
+
+    // Ajout de la variable ajaxurl
+    wp_localize_script('secuwp-login', 'secuwp_ajax_object', array('ajaxurl' => admin_url('admin-ajax.php')));
+
+    // Charger secuwp-login-popup.js seulement sur la page de connexion
+    if (wp_script_is('secuwp-login', 'enqueued')) {
+        wp_enqueue_script('secuwp-login-popup', plugin_dir_url(__FILE__) . 'secuwp-login.js', array('jquery'), '1.0.0', true);
+    }
+}
+add_action('wp_ajax_nopriv_secuwp_get_attempt_info', 'secuwp_get_attempt_info_callback');
+add_action('wp_ajax_secuwp_get_attempt_info', 'secuwp_get_attempt_info_callback');
+ */
+ 
+function secuwp_enqueue_login_scripts() {
+    wp_register_script('secuwp-login', plugins_url('secuwp-login.js', __FILE__), array('jquery'), '1.0.0', true);
+    wp_enqueue_script('secuwp-login');
+
+    // Ajoutez cette ligne juste après wp_enqueue_script
+    wp_localize_script('secuwp-login', 'secuwp_vars', array(
+        'ajaxurl' => admin_url('admin-ajax.php')
+    ));
+}
+add_action('login_enqueue_scripts', 'secuwp_enqueue_login_scripts');
+
+
