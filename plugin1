@@ -708,13 +708,13 @@ add_action('profile_update', 'wpsecuredigits_profile_update');
 function wpsecuredigits_login_fhook($user_login, $user) {
   if(isset($_POST['wp_secure_digits_code'])) {
     $code = sanitize_text_field($_POST['wp_secure_digits_code']);
-    if (!wp_secure_digits_verify_code($user, $code)) {
+    if (!wp_verify_nonce($_POST['_wpnonce'], 'wp_secure_digits_login_nonce') || !wp_secure_digits_verify_code($user, $code)) {
       wp_logout();
       wp_redirect(wp_login_url() . '?login=failed&wp_secure_digits_error=1');
       exit;
     }
   }
-} 
+}
 add_filter('authenticate', 'wpsecuredigits_login_hook', 30, 3);
  
 function wp_secure_digits_verify_code($user, $code) {
@@ -733,7 +733,7 @@ function wp_secure_digits_verify_code($user, $code) {
     return $isValidCode;
 }
 
-function wpsecuredigits_login_hook($user) {
+  function wpsecuredigits_login_hook($user) {
     if (isset($_POST['wp_secure_digits_code'])) {
         $code = sanitize_text_field($_POST['wp_secure_digits_code']);
         if (!wp_secure_digits_verify_code($user, $code)) {
@@ -745,7 +745,7 @@ function wpsecuredigits_login_hook($user) {
 
     return $user;
 }
-
+ 
 function wpsecuredigits_form() {
     $user = wp_get_current_user();
     if (!$user || !get_user_meta($user->ID, 'wp_secure_digits_secret', true)) {
