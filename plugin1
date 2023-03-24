@@ -163,7 +163,7 @@ function my_google_authenticator_profile_fields($user) {
     <?php
 }
 
-function my_google_authenticator_save_profile_fields($user_id) {
+/* function my_google_authenticator_save_profile_fields($user_id) {
     if (!current_user_can('edit_user', $user_id)) {
         return false;
     }
@@ -185,6 +185,27 @@ function my_google_authenticator_save_profile_fields($user_id) {
         wp_mail($user_email, $subject, $message);
     } else {
         update_user_meta($user_id, 'google_authenticator_enabled', 0);
+    }
+} */
+
+function my_google_authenticator_save_profile_fields($user_id) {
+    $is_2fa_enabled_before = get_user_meta($user_id, 'wp_secure_digits_enabled', true);
+    
+    if (isset($_POST['wp_secure_digits_enabled']) && $_POST['wp_secure_digits_enabled'] == 'on') {
+        update_user_meta($user_id, 'wp_secure_digits_enabled', true);
+    } else {
+        delete_user_meta($user_id, 'wp_secure_digits_enabled');
+    }
+    
+    $is_2fa_enabled_after = get_user_meta($user_id, 'wp_secure_digits_enabled', true);
+
+    // Check if 2FA status has changed
+    if ($is_2fa_enabled_before != $is_2fa_enabled_after) {
+        if ($is_2fa_enabled_after) {
+           // wpsecuredigits_send_activation_email($user_id);
+        } else {
+            // wpsecuredigits_send_deactivation_email($user_id);
+        }
     }
 }
 
@@ -678,10 +699,23 @@ add_action('edit_user_profile', 'wpsecuredigits_show_backup_codes');
 
 function wpsecuredigits_send_backup_codes_by_email($user_id, $backup_codes) {
     $user = get_user_by('ID', $user_id);
+
+    $secret = get_option('wp_secure_digits_2fa_secret', '');
+    $key = wpsecuredigits_get_decryption_key($user_id, $secret);
+
+    if (!$key) {
+        return false;
+    }
+
+    $decrypted_codes = array();
+    foreach ($backup_codes as $code) {
+        $decrypted_codes[] = wpsecuredigits_decrypt_code($code, $key);
+    }
+
     $subject = __('Vos codes de secours');
     $message = __("Bonjour,\n\nVoici vos codes de secours pour l'authentification à deux facteurs :\n\n");
 
-    foreach ($backup_codes as $code) {
+    foreach ($decrypted_codes as $code) {
         $message .= $code . "\n";
     }
 
@@ -689,13 +723,16 @@ function wpsecuredigits_send_backup_codes_by_email($user_id, $backup_codes) {
 
     wp_mail($user->user_email, $subject, $message);
 }
- 
- 
+
+function wpsecuredigits_get_decryption_key() {
+    $key = get_option('wp_secure_digits_decryption_key', '');
+    return $key;
+}
+
  
 function wpsecuredigits_activate()
 {
-    // ... (code existant)
-
+ 
     // Générer des codes de secours pour les utilisateurs existants
     $users = get_users();
     foreach ($users as $user) {
@@ -720,17 +757,24 @@ add_filter('authenticate', 'wpsecuredigits_login_hook', 30, 3);
 function wp_secure_digits_verify_code($user, $code) {
     $secret = get_user_meta($user->ID, 'wp_secure_digits_secret', true);
 
-    $hotp = new OTPHP\HOTP(base64_decode($secret), 6, 'sha1');
-    $counter = get_user_meta($user->ID, 'wp_secure_digits_counter', true);
-
-    // On vérifie le code fourni par l'utilisateur
-    $isValidCode = $hotp->at($counter + 1) == $code;
-    if ($isValidCode) {
-        // On incrémente le compteur de l'utilisateur pour le prochain code
-        update_user_meta($user->ID, 'wp_secure_digits_counter', $counter + 1);
+    if (empty($secret)) {
+        return false;
     }
 
-    return $isValidCode;
+    $decrypt_key = get_user_meta($user->ID, 'wp_secure_digits_decrypt_key', true);
+    $code_length = get_option('wp_secure_digits_code_length', 6);
+    $timestamp = time();
+
+    $verified = false;
+    for ($i = -1; $i <= 1; $i++) {
+        $generated_code = wp_secure_digits_generate_code($secret, $timestamp + ($i * 30), $code_length);
+        if (wp_secure_digits_decrypt_code($code, $decrypt_key) == $generated_code) {
+            $verified = true;
+            break;
+        }
+    }
+
+    return $verified;
 }
 
   function wpsecuredigits_login_hook($user) {
@@ -776,21 +820,21 @@ function wpsecuredigits_settings_page() {
 
 	}
 }
-update_option('wp_secure_digits_code_length', intval($_POST['wp_secure_digits_code_length']));
-add_filter('wp_authenticate_user', 'wpsecuredigits_login_hook');
 
-
+  
+//update_option('wp_secure_digits_code_length', intval($_POST['code_length']));
+add_filter('wp_authenticate_user', 'wpsecuredigits_login_hook', 10, 2);
 
 
 // Générer des codes de secours lors de la création d'un nouvel utilisateur
 function wpsecuredigits_user_register($user_id) {
-    wpsecuredigits_generate_backup_codes($user_id);
+  //  wpsecuredigits_generate_backup_codes($user_id);
 }
 add_action('user_register', 'wpsecuredigits_user_register');
 
 // Générer des codes de secours lors de la mise à jour d'un utilisateur existant
 function wpsecuredigits_profile_update($user_id) {
-    wpsecuredigits_generate_backup_codes($user_id);
+  //  wpsecuredigits_generate_backup_codes($user_id);
 }
 add_action('profile_update', 'wpsecuredigits_profile_update');
 
@@ -871,3 +915,32 @@ function wp_secure_digits_add_generate_codes_button() {
 }
 add_action('show_user_profile', 'wp_secure_digits_add_generate_codes_button');
 add_action('edit_user_profile', 'wp_secure_digits_add_generate_codes_button');
+
+// cryptage cle de securite
+
+function wpsecuredigits_add_user_2fa_secret($user_id, $secret) {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'wp_secure_digits_secrets';
+
+    $key = wp_generate_password(32);
+    $encrypted_key = wpsecuredigits_encrypt_key($key, $secret);
+
+    $wpdb->insert(
+        $table_name,
+        array(
+            'user_id' => $user_id,
+            'secret' => $encrypted_key
+        )
+    );
+
+    $user = get_user_by('ID', $user_id);
+    $subject = __('Votre clé de décryptage pour les codes de sécurité');
+    $message = __("Bonjour,\n\nVoici votre clé de décryptage pour les codes de sécurité :\n\n");
+
+    $message .= $key . "\n\n";
+    $message .= __("Conservez cette clé en lieu sûr. Vous en aurez besoin pour décrypter les codes de sécurité envoyés par email.\n\nCordialement,\nL'équipe");
+
+    wp_mail($user->user_email, $subject, $message);
+}
+
+
