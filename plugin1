@@ -708,14 +708,14 @@ add_action('profile_update', 'wpsecuredigits_profile_update');
 function wpsecuredigits_login_hook($user_login, $user) {
   if(isset($_POST['wp_secure_digits_code'])) {
     $code = sanitize_text_field($_POST['wp_secure_digits_code']);
-    if (!wp_secure_digits_verify_code($user, $code)) {
+    if (!wpsecuredigits_verify_code($user, $code)) { {
       wp_logout();
       wp_redirect(wp_login_url() . '?login=failed&wp_secure_digits_error=1');
       exit;
     }
   }
 }
-
+}
 add_filter('authenticate', 'wpsecuredigits_login_hook', 30, 3);
  
 
