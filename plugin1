@@ -793,3 +793,81 @@ function wpsecuredigits_profile_update($user_id) {
     wpsecuredigits_generate_backup_codes($user_id);
 }
 add_action('profile_update', 'wpsecuredigits_profile_update');
+
+// apres 2303
+
+function wp_secure_digits_show_recovery_codes() {
+    $user_id = get_current_user_id();
+    $codes = get_user_meta($user_id, 'wp_secure_digits_recovery_codes', true);
+
+    if (empty($codes)) {
+        return;
+    }
+
+    echo '<table class="form-table">';
+    echo '<tbody>';
+
+    for ($i = 0; $i < count($codes); $i++) {
+        echo '<tr>';
+        echo '<th><label for="wp_secure_digits_recovery_code_' . $i . '">' . __('Code de secours', 'wp-secure-digits') . ' ' . ($i + 1) . '</label></th>';
+        echo '<td><input type="text" id="wp_secure_digits_recovery_code_' . $i . '" name="wp_secure_digits_recovery_codes[]" value="' . esc_attr($codes[$i]) . '" class="regular-text"></td>';
+        echo '</tr>';
+    }
+
+    echo '</tbody>';
+    echo '</table>';
+
+    echo '<p><a href="' . wp_nonce_url(admin_url('admin-ajax.php?action=wp_secure_digits_regenerate_recovery_codes&user_id=' . $user_id), 'wp_secure_digits_regenerate_recovery_codes') . '" class="button">' . __('Générer de nouveaux codes de secours', 'wp-secure-digits') . '</a></p>';
+}
+
+function wp_secure_digits_show_recovery_codes_callback() {
+  $codes = get_user_meta(get_current_user_id(), 'wp_secure_digits_recovery_codes', true);
+  if (!$codes) {
+    echo '<p>' . __('No recovery codes available', 'wp-secure-digits') . '</p>';
+  } else {
+    echo '<ul>';
+    foreach ($codes as $code) {
+      echo '<li>' . $code . '</li>';
+    }
+    echo '</ul>';
+  }
+}
+
+// Générer des codes de secours et les envoyer par e-mail
+function wp_secure_digits_generate_backup_codes($user_id) {
+    $backup_codes = array();
+    for ($i = 1; $i <= 10; $i++) {
+        $code = wp_secure_digits_generate_code(8);
+        $backup_codes[] = $code;
+    }
+    update_user_meta($user_id, 'wp_secure_digits_backup_codes', $backup_codes);
+
+    $email = get_user_meta($user_id, 'user_email', true);
+    $subject = __('Codes de secours pour votre compte sur', 'wp-secure-digits') . ' ' . get_bloginfo('name');
+    $message = __('Voici vos codes de secours pour votre compte :', 'wp-secure-digits') . "\n\n";
+    foreach ($backup_codes as $code) {
+        $message .= $code . "\n";
+    }
+    $headers = array('Content-Type: text/plain; charset=UTF-8');
+    wp_mail($email, $subject, $message, $headers);
+}
+
+// Ajouter un bouton pour générer des codes de secours
+function wp_secure_digits_add_generate_codes_button() {
+    ?>
+    <tr>
+        <th scope="row"><?php _e('Codes de secours', 'wp-secure-digits'); ?></th>
+        <td>
+            <?php if (isset($_POST['wp_secure_digits_generate_codes'])) {
+                wp_secure_digits_generate_backup_codes(get_current_user_id());
+                printf(__('Les codes de secours ont été générés et envoyés à votre adresse e-mail enregistrée.'), 'wp-secure-digits');
+            } else { ?>
+                <p class="description"><?php _e('Les codes de secours sont utilisables en cas de perte de votre téléphone ou de désynchronisation avec Google Authenticator.', 'wp-secure-digits'); ?></p>
+                <button class="button" type="submit" name="wp_secure_digits_generate_codes"><?php _e('Générer des codes de secours', 'wp-secure-digits'); ?></button>
+            <?php } ?>
+        </td>
+    </tr>
+    <?php
+}
+add_action('show_user_profile', 'wp_secure_digits_add_generate_codes_button');
+add_action('edit_user_profile', 'wp_secure_digits_add_generate_codes_button');
