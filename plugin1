@@ -705,7 +705,7 @@ function wpsecuredigits_activate()
 add_action('profile_update', 'wpsecuredigits_profile_update');
 
 // Vérifier le code de secours
-/* function wpsecuredigits_login_hook($user, $username, $password) {
+  function wpsecuredigits_login_hook($user, $username, $password) {
     if (!isset($_POST['wpsecuredigits_code']) || empty($_POST['wpsecuredigits_code'])) {
         $message = '<strong>ERREUR</strong>&nbsp;: Le champ du code à deux chiffres est vide.';
         wp_die($message, 'Connexion impossible', array('back_link' => true));
@@ -720,7 +720,7 @@ add_action('profile_update', 'wpsecuredigits_profile_update');
     return $user;
 }
 add_filter('authenticate', 'wpsecuredigits_login_hook', 30, 3);
- */
+ 
 
 // Générer des codes de secours lors de la création d'un nouvel utilisateur
 function wpsecuredigits_user_register($user_id) {
