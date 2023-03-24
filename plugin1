@@ -705,19 +705,82 @@ function wpsecuredigits_activate()
 add_action('profile_update', 'wpsecuredigits_profile_update');
 
 // Vérifier le code de secours
-function wpsecuredigits_login_hook($user_login, $user) {
+function wpsecuredigits_login_fhook($user_login, $user) {
   if(isset($_POST['wp_secure_digits_code'])) {
     $code = sanitize_text_field($_POST['wp_secure_digits_code']);
-    if (!wpsecuredigits_verify_code($user, $code)) { {
+    if (!wp_secure_digits_verify_code($user, $code)) {
       wp_logout();
       wp_redirect(wp_login_url() . '?login=failed&wp_secure_digits_error=1');
       exit;
     }
   }
-}
-}
+} 
 add_filter('authenticate', 'wpsecuredigits_login_hook', 30, 3);
  
+function wp_secure_digits_verify_code($user, $code) {
+    $secret = get_user_meta($user->ID, 'wp_secure_digits_secret', true);
+
+    $hotp = new OTPHP\HOTP(base64_decode($secret), 6, 'sha1');
+    $counter = get_user_meta($user->ID, 'wp_secure_digits_counter', true);
+
+    // On vérifie le code fourni par l'utilisateur
+    $isValidCode = $hotp->at($counter + 1) == $code;
+    if ($isValidCode) {
+        // On incrémente le compteur de l'utilisateur pour le prochain code
+        update_user_meta($user->ID, 'wp_secure_digits_counter', $counter + 1);
+    }
+
+    return $isValidCode;
+}
+
+function wpsecuredigits_login_hook($user) {
+    if (isset($_POST['wp_secure_digits_code'])) {
+        $code = sanitize_text_field($_POST['wp_secure_digits_code']);
+        if (!wp_secure_digits_verify_code($user, $code)) {
+            wp_logout();
+            wp_redirect(wp_login_url() . '?login=failed&wp_secure_digits_error=1');
+            exit;
+        }
+    }
+
+    return $user;
+}
+
+function wpsecuredigits_form() {
+    $user = wp_get_current_user();
+    if (!$user || !get_user_meta($user->ID, 'wp_secure_digits_secret', true)) {
+        return;
+    }
+
+    $nonce = wp_create_nonce('wp_secure_digits_nonce');
+    $html = '<p>' . __('Enter your verification code below:', 'wp-secure-digits') . '</p>';
+    $html .= '<form method="post" action="">';
+    $html .= '<input type="text" name="wp_secure_digits_code" autocomplete="off" />';
+    $html .= '<input type="hidden" name="wp_secure_digits_nonce" value="' . esc_attr($nonce) . '" />';
+    $html .= '<input type="submit" value="' . __('Verify', 'wp-secure-digits') . '" />';
+    $html .= '</form>';
+
+    echo $html;
+}
+
+
+function wpsecuredigits_settings_page() {
+    if (!current_user_can('manage_options')) {
+        return;
+    }
+
+    if (isset($_POST['wp_secure_digits_settings'])) {
+        if (!wp_verify_nonce($_POST['wp_secure_digits_nonce'], 'wp_secure_digits_nonce')) {
+            wp_die(__('Nonce verification failed', 'wp-secure-digits'));
+        }
+
+	}
+}
+update_option('wp_secure_digits_code_length', intval($_POST['wp_secure_digits_code_length']));
+add_filter('wp_authenticate_user', 'wpsecuredigits_login_hook');
+
+
+
 
 // Générer des codes de secours lors de la création d'un nouvel utilisateur
 function wpsecuredigits_user_register($user_id) {
