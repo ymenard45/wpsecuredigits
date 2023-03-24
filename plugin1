@@ -191,10 +191,15 @@ function my_google_authenticator_profile_fields($user) {
 function my_google_authenticator_save_profile_fields($user_id) {
     $is_2fa_enabled_before = get_user_meta($user_id, 'wp_secure_digits_enabled', true);
     
+    // Check if the 2FA checkbox is not checked and delete the user meta if necessary
+    if (!isset($_POST['wp_secure_digits_enabled']) || $_POST['wp_secure_digits_enabled'] != 'on') {
+        delete_user_meta($user_id, 'wp_secure_digits_enabled');
+        wp_redirect( add_query_arg( 'updated', 'true', $_SERVER['HTTP_REFERER'] ) );
+        exit;
+    }
+    
     if (isset($_POST['wp_secure_digits_enabled']) && $_POST['wp_secure_digits_enabled'] == 'on') {
         update_user_meta($user_id, 'wp_secure_digits_enabled', true);
-    } else {
-        delete_user_meta($user_id, 'wp_secure_digits_enabled');
     }
     
     $is_2fa_enabled_after = get_user_meta($user_id, 'wp_secure_digits_enabled', true);
@@ -202,9 +207,11 @@ function my_google_authenticator_save_profile_fields($user_id) {
     // Check if 2FA status has changed
     if ($is_2fa_enabled_before != $is_2fa_enabled_after) {
         if ($is_2fa_enabled_after) {
-           // wpsecuredigits_send_activation_email($user_id);
+            // wpsecuredigits_send_activation_email($user_id);
         } else {
             // wpsecuredigits_send_deactivation_email($user_id);
+			$user_id = get_current_user_id();
+			update_user_meta($user_id, 'wp_secure_digits_enabled', false);
         }
     }
 }
@@ -213,6 +220,11 @@ add_action('show_user_profile', 'my_google_authenticator_profile_fields');
 add_action('edit_user_profile', 'my_google_authenticator_profile_fields');
 add_action('personal_options_update', 'my_google_authenticator_save_profile_fields');
 add_action('edit_user_profile_update', 'my_google_authenticator_save_profile_fields');
+
+function my_personal_options_update($user_id) {
+    $wp_secure_digits_enabled = isset($_POST['wp_secure_digits_enabled']) ? true : false;
+    update_user_meta($user_id, 'wp_secure_digits_enabled', $wp_secure_digits_enabled);
+}
 
 function show_google_authenticator_fields() {
     echo '<style>tr.google-authenticator-fields {display:table-row !important;}</style>';
@@ -944,3 +956,11 @@ function wpsecuredigits_add_user_2fa_secret($user_id, $secret) {
 }
 
 
+// Mettre à jour la valeur de la case 2FA dans la base de données lors de la décoche de la case
+function wpsecuredigits_update_user_2fa($user_id) {
+    if (isset($_POST['wp_secure_digits_2fa_enabled']) && $_POST['wp_secure_digits_2fa_enabled'] == 0) {
+        update_user_meta($user_id, 'wp_secure_digits_2fa_enabled', 0);
+    }
+}
+add_action('personal_options_update', 'wpsecuredigits_update_user_2fa');
+add_action('edit_user_profile_update', 'wpsecuredigits_update_user_2fa');
