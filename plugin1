@@ -412,11 +412,11 @@ function my_google_authenticator_register_settings() {
     add_settings_field('my_google_authenticator_disable_2fa', __('Activer la désactivation 2FA', 'my_google_authenticator'), 'my_google_authenticator_disable_2fa_render', 'my_google_authenticator', 'my_google_authenticator_settings_section');
     
 	add_settings_field(
-		'wpsecuredigits_disable_2fa', // ID du champ
-		__('Bloquer la désactivation de 2FA pour les groupes choisis', 'wpsecuredigits'), // Titre du champ
-		'wpsecuredigits_disable_2fa_render', // Callback pour afficher le champ
-		'wpsecuredigits_pluginPage', // Page d'options du plugin
-		'wpsecuredigits_pluginPage_section' // Section du plugin
+		'my_google_authenticator_disable_2fa', // ID du champ
+		__('Bloquer la désactivation de 2FA pour les groupes choisis', 'my_google_authenticator'), // Titre du champ
+		'my_google_authenticator_disable_2fa_render', // Callback pour afficher le champ
+		'my_google_authenticator_pluginPage', // Page d'options du plugin
+		'my_google_authenticator_pluginPage_section' // Section du plugin
 	);
 
     add_settings_field(
@@ -493,13 +493,13 @@ add_action('admin_init', 'my_google_authenticator_register_settings');
 		echo __('Cochez cette case pour interdire la désactivation de la 2FA pour les groupes sélectionnés.', 'my_google_authenticator');
 	}
 
-	function wpsecuredigits_disable_2fa_render() {
-		$options = get_option('wpsecuredigits_settings');
+/* 	function my_google_authenticator_disable_2fa_render() {
+		$options = get_option('my_google_authenticator_settings');
 		?>
-		<input type='checkbox' name='wpsecuredigits_settings[wpsecuredigits_disable_2fa]' <?php checked($options['wpsecuredigits_disable_2fa'], 1); ?> value='1'>
+		<input type='checkbox' name='my_google_authenticator_settings[my_google_authenticator_disable_2fa]' <?php checked($options['my_google_authenticator_disable_2fa'], 1); ?> value='1'>
 		<?php
 	}
-
+ */
 
 
 add_action('admin_init', 'my_google_authenticator_register_settings');
