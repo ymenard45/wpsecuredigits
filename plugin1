@@ -190,31 +190,25 @@ function my_google_authenticator_profile_fields($user) {
 
 function my_google_authenticator_save_profile_fields($user_id) {
     $is_2fa_enabled_before = get_user_meta($user_id, 'wp_secure_digits_enabled', true);
-    
-    // Check if the 2FA checkbox is not checked and delete the user meta if necessary
-    if (!isset($_POST['wp_secure_digits_enabled']) || $_POST['wp_secure_digits_enabled'] != 'on') {
-        delete_user_meta($user_id, 'wp_secure_digits_enabled');
-        wp_redirect( add_query_arg( 'updated', 'true', $_SERVER['HTTP_REFERER'] ) );
-        exit;
-    }
-    
+
     if (isset($_POST['wp_secure_digits_enabled']) && $_POST['wp_secure_digits_enabled'] == 'on') {
         update_user_meta($user_id, 'wp_secure_digits_enabled', true);
+    } else {
+        delete_user_meta($user_id, 'wp_secure_digits_enabled');
     }
-    
+
     $is_2fa_enabled_after = get_user_meta($user_id, 'wp_secure_digits_enabled', true);
 
     // Check if 2FA status has changed
     if ($is_2fa_enabled_before != $is_2fa_enabled_after) {
         if ($is_2fa_enabled_after) {
-            // wpsecuredigits_send_activation_email($user_id);
+            wpsecuredigits_send_activation_email($user_id);
         } else {
-            // wpsecuredigits_send_deactivation_email($user_id);
-			$user_id = get_current_user_id();
-			update_user_meta($user_id, 'wp_secure_digits_enabled', false);
+            wpsecuredigits_send_deactivation_email($user_id);
         }
     }
 }
+
 
 add_action('show_user_profile', 'my_google_authenticator_profile_fields');
 add_action('edit_user_profile', 'my_google_authenticator_profile_fields');
@@ -964,3 +958,16 @@ function wpsecuredigits_update_user_2fa($user_id) {
 }
 add_action('personal_options_update', 'wpsecuredigits_update_user_2fa');
 add_action('edit_user_profile_update', 'wpsecuredigits_update_user_2fa');
+
+//maj 
+
+function wpsecuredigits_update_options() {
+    check_admin_referer('wpsecuredigits_update_options');
+
+    $enable_2fa = isset($_POST['enable_2fa']) ? 'on' : 'off';
+    update_option('wpsecuredigits_enable_2fa', $enable_2fa);
+
+    wp_redirect(add_query_arg('settings-updated', 'true', wp_get_referer()));
+    exit;
+}
+add_action('admin_post_wpsecuredigits_update_options', 'wpsecuredigits_update_options');
