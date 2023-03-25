@@ -1,4 +1,3 @@
-
 <?php
 /*
 Plugin Name: Mon Google Authentificator
@@ -21,6 +20,23 @@ function mon_google_authenticator_load_textdomain() {
 add_action('plugins_loaded', 'mon_google_authenticator_load_textdomain');
 
 require_once plugin_dir_path(__FILE__) . 'lib/Google-Authentificator.php';
+
+// traduction des messages dans les fichiers enfants
+function my_google_authenticator_enqueue_admin_scripts($hook) {
+    if ('settings_page_my_google_authenticator_settings' !== $hook) {
+        return;
+    }
+
+    wp_enqueue_script('my-google-authenticator-admin', plugins_url('admin/js/my-google-authenticator-admin.js', __FILE__), array('jquery'), '1.0.0', true);
+
+    $translation_array = array(
+        'reset_confirm_message' => __('Voulez-vous vraiment réinitialiser tous les paramètres de My Google Authenticator ?', 'my-google-authenticator'),
+    );
+
+    wp_localize_script('my-google-authenticator-admin', 'my_google_authenticator_i18n', $translation_array);
+}
+add_action('admin_enqueue_scripts', 'my_google_authenticator_enqueue_admin_scripts');
+
 
 // Vos chaînes de texte originales
 $menu_title = __('Mon Google Authenticator', 'mon-google-authenticator');
@@ -413,10 +429,81 @@ function my_google_authenticator_settings_init() {
         $permission_section_id
     );
 
+	 $permission_section_id = 'my_google_authenticator_permission_section';
+
+			add_settings_section(
+				$permission_section_id,
+				__('Permission', 'my-google-authenticator'),
+				'my_google_authenticator_permission_section_callback',
+				$option_group
+			);
+
+			add_settings_field(
+				'my_google_authenticator_allow_disable_2fa',
+				__('Autoriser la désactivation de 2FA', 'my-google-authenticator'),
+				'my_google_authenticator_allow_disable_2fa_render',
+				$option_group,
+				$permission_section_id
+			);
+
+			add_settings_field(
+				'my_google_authenticator_user_groups',
+				__('Groupes d\'utilisateurs concernés', 'my-google-authenticator'),
+				'my_google_authenticator_user_groups_render',
+				$option_group,
+				$permission_section_id
+			);
+				 
+	 
 	 
 }
 
 // Ajoute la page d'options du plugin au menu d'administration de WordPress
 add_action('admin_menu', 'my_google_authenticator_add_settings_link');
 
- 
+/* Afficher la case à cocher "Autoriser la désactivation de 2FA" */
+ function my_google_authenticator_allow_disable_2fa_render() {
+    $options = get_option('my_google_authenticator_settings');
+    ?>
+    <input type='checkbox' name='my_google_authenticator_settings[allow_disable_2fa]' <?php checked($options['allow_disable_2fa'], 1); ?> value='1'>
+    <?php
+}
+/* afficher les groupes d'utilisateurs dans un champ de sélection multiple */
+function my_google_authenticator_user_groups_render() {
+    $options = get_option('my_google_authenticator_settings');
+    $user_roles = get_editable_roles();
+
+    echo "<select name='my_google_authenticator_settings[user_groups][]' multiple='multiple' size='6'>";
+
+    foreach ($user_roles as $key => $role) {
+        $selected = in_array($key, (array)$options['user_groups']) ? 'selected' : '';
+        echo "<option value='" . $key . "' " . $selected . ">" . $role['name'] . "</option>";
+    }
+
+    echo "</select>";
+}
+
+/* afficher une description pour la section "Permission" */
+function my_google_authenticator_permission_section_callback() {
+    echo __('Définir les permissions pour la désactivation de la 2FA et les groupes d\'utilisateurs concernés.', 'my-google-authenticator');
+}
+
+function my_google_authenticator_options_page() {
+    // Enqueue the necessary CSS and JavaScript files
+    wp_enqueue_style('my-google-authenticator-admin-css', plugins_url('admin/css/my-google-authenticator-admin.css', __FILE__));
+    wp_enqueue_script('my-google-authenticator-admin-js', plugins_url('admin/js/my-google-authenticator-admin.js', __FILE__), array('jquery'));
+
+    ?>
+    <form action='options.php' method='post'>
+        <h2>My Google Authenticator</h2>
+        <?php
+        settings_fields('my_google_authenticator_settings');
+        do_settings_sections('my_google_authenticator_settings');
+        submit_button();
+        ?>
+    </form>
+    <?php
+}
+
+
+
