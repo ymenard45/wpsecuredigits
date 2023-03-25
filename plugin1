@@ -202,9 +202,9 @@ function my_google_authenticator_save_profile_fields($user_id) {
     // Check if 2FA status has changed
     if ($is_2fa_enabled_before != $is_2fa_enabled_after) {
         if ($is_2fa_enabled_after) {
-            wpsecuredigits_send_activation_email($user_id);
+            my_google_authenticator_send_activation_email($user_id);
         } else {
-            wpsecuredigits_send_deactivation_email($user_id);
+            my_google_authenticator_send_deactivation_email($user_id);
         }
     }
 }
@@ -247,7 +247,7 @@ function my_google_authenticator_authenticate($user, $username, $password) {
         if (!$ga->verifyCode($secret, $code)) {
             $backup_code = isset($_POST['backup_code']) ? $_POST['backup_code'] : '';
             if (!empty($backup_code)) {
-                $backup_codes = get_user_meta($user->ID, 'wpsecuredigits_backup_codes', true);
+                $backup_codes = get_user_meta($user->ID, 'my_google_authenticator_backup_codes', true);
                 $is_valid_backup_code = false;
                 
                 foreach ($backup_codes as $index => $hashed_code) {
@@ -259,7 +259,7 @@ function my_google_authenticator_authenticate($user, $username, $password) {
                 }
 
                 if ($is_valid_backup_code) {
-                    update_user_meta($user->ID, 'wpsecuredigits_backup_codes', array_values($backup_codes));
+                    update_user_meta($user->ID, 'my_google_authenticator_backup_codes', array_values($backup_codes));
                     return $user;
                 } else {
                     return new WP_Error('invalid_backup_code', __('Le code de secours saisi est incorrect.'));
@@ -275,7 +275,7 @@ function my_google_authenticator_authenticate($user, $username, $password) {
 
 
 add_filter('authenticate', 'my_google_authenticator_authenticate', 20, 3);
-add_action('wp_login', 'wpsecuredigits_login_hook', 10, 2);  // ?
+add_action('wp_login', 'my_google_authenticator_login_hook', 10, 2);  // ?
 
 function my_google_authenticator_login_form() {
     ?>
@@ -395,15 +395,191 @@ function my_google_authenticator_text_color_callback() {
 
 function my_google_authenticator_register_settings() {
     if ( isset($_POST['my_google_authenticator_settings_nonce']) && wp_verify_nonce( $_POST['my_google_authenticator_settings_nonce'], 'my_google_authenticator_settings' ) ) {
+
+    // Enregistrement des paramètres
+    register_setting('my_google_authenticator', 'my_google_authenticator_settings');
+
+    // Ajout d'une section pour les paramètres
+    add_settings_section('my_google_authenticator_settings_section', __('Réglages', 'my_google_authenticator'), 'my_google_authenticator_settings_section_callback', 'my_google_authenticator');
+
+    // Ajout des différents champs de paramètres
+    add_settings_field('my_google_authenticator_custom_logo_url', __('URL du logo personnalisé', 'my_google_authenticator'), 'my_google_authenticator_custom_logo_url_render', 'my_google_authenticator', 'my_google_authenticator_settings_section');
+    add_settings_field('my_google_authenticator_desktop_wallpaper_url', __('URL du fond d\'écran pour ordinateur de bureau', 'my_google_authenticator'), 'my_google_authenticator_desktop_wallpaper_url_render', 'my_google_authenticator', 'my_google_authenticator_settings_section');
+    add_settings_field('my_google_authenticator_mobile_wallpaper_url', __('URL du fond d\'écran pour mobile', 'my_google_authenticator'), 'my_google_authenticator_mobile_wallpaper_url_render', 'my_google_authenticator', 'my_google_authenticator_settings_section');
+    add_settings_field('my_google_authenticator_transparency_level', __('Niveau de transparence', 'my_google_authenticator'), 'my_google_authenticator_transparency_level_render', 'my_google_authenticator', 'my_google_authenticator_settings_section');
+    add_settings_field('my_google_authenticator_text_color', __('Couleur du texte', 'my_google_authenticator'), 'my_google_authenticator_text_color_render', 'my_google_authenticator', 'my_google_authenticator_settings_section');
+    add_settings_field('my_google_authenticator_user_roles', __('Rôles d\'utilisateur', 'my_google_authenticator'), 'my_google_authenticator_user_roles_render', 'my_google_authenticator', 'my_google_authenticator_settings_section');
+    add_settings_field('my_google_authenticator_disable_2fa', __('Activer la désactivation 2FA', 'my_google_authenticator'), 'my_google_authenticator_disable_2fa_render', 'my_google_authenticator', 'my_google_authenticator_settings_section');
+    
+	add_settings_field(
+		'wpsecuredigits_disable_2fa', // ID du champ
+		__('Bloquer la désactivation de 2FA pour les groupes choisis', 'wpsecuredigits'), // Titre du champ
+		'wpsecuredigits_disable_2fa_render', // Callback pour afficher le champ
+		'wpsecuredigits_pluginPage', // Page d'options du plugin
+		'wpsecuredigits_pluginPage_section' // Section du plugin
+	);
+
+    add_settings_field(
+        'my_google_authenticator_disable_2fa',
+        __('Interdire la désactivation 2FA', 'my_google_authenticator'),
+        'my_google_authenticator_disable_2fa_render',
+        'my_google_authenticator_plugin',
+        'my_google_authenticator_disable_2fa_section'
+    );
+
+    register_setting('my_google_authenticator_plugin', 'my_google_authenticator_disable_2fa');
+
         $text_color = sanitize_text_field($_POST['text_color']);
         update_option('text_color', $text_color);
     }
 }
 add_action('admin_init', 'my_google_authenticator_register_settings');
 
+ // Fonctions de rendu pour chaque champ de paramètre
+    function my_google_authenticator_custom_logo_url_render() {
+        $options = get_option('my_google_authenticator_settings');
+        ?>
+        <input type="text" name="my_google_authenticator_settings[custom_logo_url]" value="<?php echo esc_attr($options['custom_logo_url']); ?>">
+        <?php
+    }
+
+    function my_google_authenticator_desktop_wallpaper_url_render() {
+        $options = get_option('my_google_authenticator_settings');
+        ?>
+        <input type="text" name="my_google_authenticator_settings[desktop_wallpaper_url]" value="<?php echo esc_attr($options['desktop_wallpaper_url']); ?>">
+        <?php
+    }
+
+    function my_google_authenticator_mobile_wallpaper_url_render() {
+        $options = get_option('my_google_authenticator_settings');
+        ?>
+        <input type="text" name="my_google_authenticator_settings[mobile_wallpaper_url]" value="<?php echo esc_attr($options['mobile_wallpaper_url']); ?>">
+        <?php
+    }
+
+    function my_google_authenticator_transparency_level_render() {
+        $options = get_option('my_google_authenticator_settings');
+        ?>
+        <input type="number" min="0" max="100" name="my_google_authenticator_settings[transparency_level]" value="<?php echo esc_attr($options['transparency_level']); ?>">
+        <?php
+    }
+	
+	    function my_google_authenticator_text_color_render() {
+        $options = get_option('my_google_authenticator_settings');
+        ?>
+        <input type="text" name="my_google_authenticator_settings[text_color]" value="<?php echo esc_attr($options['text_color']); ?>">
+        <?php
+    }
+
+    function my_google_authenticator_user_roles_render() {
+        $options = get_option('my_google_authenticator_settings');
+        global $wp_roles;
+        $roles = $wp_roles->get_names();
+        foreach ($roles as $role_value => $role_name) {
+            ?>
+            <input type="checkbox" name="my_google_authenticator_settings[user_roles][<?php echo esc_attr($role_value); ?>]" value="1" <?php checked($options['user_roles'][$role_value], 1); ?>> <?php echo esc_html($role_name); ?><br>
+            <?php
+        }
+    }
+
+    function my_google_authenticator_disable_2fa_render() {
+        $options = get_option('my_google_authenticator_settings');
+        ?>
+        <input type="checkbox" name="my_google_authenticator_settings[disable_2fa]" value="1" <?php checked($options['disable_2fa'], 1); ?>>
+        <?php
+    }
+ 
+	function my_google_authenticator_disable_2fa_section_callback() {
+		echo __('Cochez cette case pour interdire la désactivation de la 2FA pour les groupes sélectionnés.', 'my_google_authenticator');
+	}
+
+	function wpsecuredigits_disable_2fa_render() {
+		$options = get_option('wpsecuredigits_settings');
+		?>
+		<input type='checkbox' name='wpsecuredigits_settings[wpsecuredigits_disable_2fa]' <?php checked($options['wpsecuredigits_disable_2fa'], 1); ?> value='1'>
+		<?php
+	}
 
 
-function my_google_authenticator_enqueue_color_picker($hook_suffix) {
+
+add_action('admin_init', 'my_google_authenticator_register_settings');
+
+function my_google_authenticator_user_profile_fields($user) {
+    if (!current_user_can('edit_user', $user->ID)) {
+        return;
+    }
+
+    // Vérifiez si l'option "Interdire la désactivation pour les groupes sélectionnés" est activée
+    $disable_2fa = get_option('my_google_authenticator_disable_2fa');
+
+    // Vérifiez si l'utilisateur appartient à l'un des groupes sélectionnés
+    $user_role_allowed = my_google_authenticator_check_user_role($user->roles);
+
+    ?>
+    <h3><?php _e('Authentification à deux facteurs', 'my_google_authenticator'); ?></h3>
+    <table class="form-table">
+        <tr>
+            <th><label for="my_google_authenticator_enable_2fa"><?php _e('Activer 2FA', 'my_google_authenticator'); ?></label></th>
+            <td>
+                <?php
+                // Affichez l'option 2FA en fonction de l'état de l'option "Interdire la désactivation pour les groupes sélectionnés" et du rôle de l'utilisateur
+                if (!$disable_2fa || ($disable_2fa && $user_role_allowed)) {
+                    // Affichez l'option 2FA comme d'habitude
+                    $checked = get_the_author_meta('my_google_authenticator_enable_2fa', $user->ID) ? 'checked' : '';
+                    ?>
+                    <input type="checkbox" name="my_google_authenticator_enable_2fa" id="my_google_authenticator_enable_2fa" value="1" <?php echo $checked; ?> />
+                    <span class="description"><?php _e('Cochez cette case pour activer l\'authentification à deux facteurs.', 'my_google_authenticator'); ?></span>
+                    <?php
+                } else {
+                    // Affichez un message indiquant que l'option 2FA ne peut pas être désactivée pour cet utilisateur
+                    echo "<p>" . __("La désactivation de l'authentification à deux facteurs est interdite pour votre groupe d'utilisateurs.", "my_google_authenticator") . "</p>";
+                }
+                ?>
+            </td>
+        </tr>
+        <tr>
+            <th><label for="my_google_authenticator_secret_key"><?php _e('Clé secrète', 'my_google_authenticator'); ?></label></th>
+            <td>
+                <input type="text" name="my_google_authenticator_secret_key" id="my_google_authenticator_secret_key" value="<?php echo esc_attr(get_the_author_meta('my_google_authenticator_secret_key', $user->ID)); ?>" class="regular-text" />
+                <br />
+                <span class="description"><?php _e('Entrez votre clé secrète pour l\'authentification à deux facteurs.', 'my_google_authenticator'); ?></span>
+            </td>
+        </tr>
+    </table>
+    <?php
+}
+
+function my_google_authenticator_save_user_profile_fields($user_id) {
+    if (!current_user_can('edit_user', $user_id)) {
+        return;
+    }
+
+    $user = get_user_by('id', $user_id);
+
+    // Vérifiez si l'option "Interdire la désactivation pour les groupes sélectionnés" est activée
+    $disable_2fa = get_option('my_google_authenticator_disable_2fa');
+
+    // Vérifiez si l'utilisateur appartient à l'un des groupes sélectionnés
+    $user_role_allowed = my_google_authenticator_check_user_role($user->roles);
+
+    if (!$disable_2fa || ($disable_2fa && $user_role_allowed)) {
+        // Si l'option "Interdire la désactivation pour les groupes sélectionnés" est désactivée ou si l'utilisateur appartient à un groupe autorisé, enregistrez les champs du profil comme d'habitude
+        if (isset($_POST['my_google_authenticator_enable_2fa'])) {
+            update_user_meta($user_id, 'my_google_authenticator_enable_2fa', $_POST['my_google_authenticator_enable_2fa']);
+        } else {
+            delete_user_meta($user_id, 'my_google_authenticator_enable_2fa');
+        }
+
+        if (isset($_POST['my_google_authenticator_secret_key'])) {
+            update_user_meta($user_id, 'my_google_authenticator_secret_key', $_POST['my_google_authenticator_secret_key']);
+        } else {
+            delete_user_meta($user_id, 'my_google_authenticator_secret_key');
+        }
+    }
+}
+	
+/* ----------------------------------- */
+/* function my_google_authenticator_enqueue_color_picker($hook_suffix) {
     if ('settings_page_my_google_authenticator' !== $hook_suffix) {
         return;
     }
@@ -411,10 +587,10 @@ function my_google_authenticator_enqueue_color_picker($hook_suffix) {
     wp_enqueue_style('wp-color-picker');
     wp_enqueue_script('my-google-authenticator-color-picker', plugins_url('color-picker.js', __FILE__), array('wp-color-picker'), false, true);
 }
-
+ */
  
 
-function my_google_authenticator_custom_text_color() {
+/* function my_google_authenticator_custom_text_color() {
     $text_color = get_option('text_color');
 
     if ($text_color) {
@@ -428,9 +604,9 @@ function my_google_authenticator_custom_text_color() {
         <?php
     }
 }
+ */
 
-
-add_action('login_enqueue_scripts', 'my_google_authenticator_custom_text_color');
+/* add_action('login_enqueue_scripts', 'my_google_authenticator_custom_text_color'); */
 
 
 function my_google_authenticator_desktop_wallpaper_callback() {
@@ -652,35 +828,35 @@ add_action('login_form', 'my_google_authenticator_login_form_wrapper');
  
  // code de secours
  
- function wpsecuredigits_add_backup_code_field() {
+ function my_google_authenticator_add_backup_code_field() {
     echo '<p><label for="backup_code">' . __('Code de secours') . '<br />';
     echo '<input type="text" name="backup_code" id="backup_code" class="input" /></label></p>';
 }
-add_action('login_form', 'wpsecuredigits_add_backup_code_field');
+add_action('login_form', 'my_google_authenticator_add_backup_code_field');
 
-function wpsecuredigits_generate_backup_codes($user_id) {
+function my_google_authenticator_generate_backup_codes($user_id) {
     $backup_codes = array();
     for ($i = 0; $i < 5; $i++) {
         $backup_codes[] = wp_generate_password(24, false, false);
     }
 
-    update_user_meta($user_id, 'wpsecuredigits_backup_codes', array_map(function($code) {
+    update_user_meta($user_id, 'my_google_authenticator_backup_codes', array_map(function($code) {
         return password_hash($code, PASSWORD_DEFAULT);
     }, $backup_codes));
 
-    wpsecuredigits_send_backup_codes_by_email($user_id, $backup_codes);
+    my_google_authenticator_send_backup_codes_by_email($user_id, $backup_codes);
 
     return $backup_codes;
 }
-add_action('profile_update', 'wpsecuredigits_generate_backup_codes', 10, 1);
+add_action('profile_update', 'my_google_authenticator_generate_backup_codes', 10, 1);
 
 // modif interface utilisateur
  
- function wpsecuredigits_show_backup_codes($user) {
-    $backup_codes = get_user_meta($user->ID, 'wpsecuredigits_backup_codes', true);
+ function my_google_authenticator_show_backup_codes($user) {
+    $backup_codes = get_user_meta($user->ID, 'my_google_authenticator_backup_codes', true);
 
     if (empty($backup_codes)) {
-        $backup_codes = wpsecuredigits_generate_backup_codes($user->ID);
+        $backup_codes = my_google_authenticator_generate_backup_codes($user->ID);
     }
 
     ?>
@@ -700,14 +876,14 @@ add_action('profile_update', 'wpsecuredigits_generate_backup_codes', 10, 1);
     <?php
 }
 
-add_action('show_user_profile', 'wpsecuredigits_show_backup_codes');
-add_action('edit_user_profile', 'wpsecuredigits_show_backup_codes');
+add_action('show_user_profile', 'my_google_authenticator_show_backup_codes');
+add_action('edit_user_profile', 'my_google_authenticator_show_backup_codes');
 
-function wpsecuredigits_send_backup_codes_by_email($user_id, $backup_codes) {
+function my_google_authenticator_send_backup_codes_by_email($user_id, $backup_codes) {
     $user = get_user_by('ID', $user_id);
 
     $secret = get_option('wp_secure_digits_2fa_secret', '');
-    $key = wpsecuredigits_get_decryption_key($user_id, $secret);
+    $key = my_google_authenticator_get_decryption_key($user_id, $secret);
 
     if (!$key) {
         return false;
@@ -715,7 +891,7 @@ function wpsecuredigits_send_backup_codes_by_email($user_id, $backup_codes) {
 
     $decrypted_codes = array();
     foreach ($backup_codes as $code) {
-        $decrypted_codes[] = wpsecuredigits_decrypt_code($code, $key);
+        $decrypted_codes[] = my_google_authenticator_decrypt_code($code, $key);
     }
 
     $subject = __('Vos codes de secours');
@@ -726,29 +902,29 @@ function wpsecuredigits_send_backup_codes_by_email($user_id, $backup_codes) {
     }
 
     $message .= __("\nVeuillez conserver ces codes en lieu sûr. Vous pouvez les utiliser pour vous connecter à votre compte si vous perdez votre dispositif d'authentification à deux facteurs.\n\nCordialement,\nL'équipe");
-
+ 
     wp_mail($user->user_email, $subject, $message);
 }
 
-function wpsecuredigits_get_decryption_key() {
+function my_google_authenticator_get_decryption_key() {
     $key = get_option('wp_secure_digits_decryption_key', '');
     return $key;
 }
 
  
-function wpsecuredigits_activate()
+function my_google_authenticator_activate()
 {
  
     // Générer des codes de secours pour les utilisateurs existants
     $users = get_users();
     foreach ($users as $user) {
-        wpsecuredigits_generate_backup_codes($user->ID);
+        my_google_authenticator_generate_backup_codes($user->ID);
     }
 }
-add_action('profile_update', 'wpsecuredigits_profile_update');
+add_action('profile_update', 'my_google_authenticator_profile_update');
 
 // Vérifier le code de secours
-function wpsecuredigits_login_fhook($user_login, $user) {
+function my_google_authenticator_login_fhook($user_login, $user) {
   if(isset($_POST['wp_secure_digits_code'])) {
     $code = sanitize_text_field($_POST['wp_secure_digits_code']);
     if (!wp_verify_nonce($_POST['_wpnonce'], 'wp_secure_digits_login_nonce') || !wp_secure_digits_verify_code($user, $code)) {
@@ -758,7 +934,7 @@ function wpsecuredigits_login_fhook($user_login, $user) {
     }
   }
 }
-add_filter('authenticate', 'wpsecuredigits_login_hook', 30, 3);
+add_filter('authenticate', 'my_google_authenticator_login_hook', 30, 3);
  
 function wp_secure_digits_verify_code($user, $code) {
     $secret = get_user_meta($user->ID, 'wp_secure_digits_secret', true);
@@ -783,7 +959,7 @@ function wp_secure_digits_verify_code($user, $code) {
     return $verified;
 }
 
-  function wpsecuredigits_login_hook($user) {
+  function my_google_authenticator_login_hook($user) {
     if (isset($_POST['wp_secure_digits_code'])) {
         $code = sanitize_text_field($_POST['wp_secure_digits_code']);
         if (!wp_secure_digits_verify_code($user, $code)) {
@@ -796,7 +972,7 @@ function wp_secure_digits_verify_code($user, $code) {
     return $user;
 }
  
-function wpsecuredigits_form() {
+function my_google_authenticator_form() {
     $user = wp_get_current_user();
     if (!$user || !get_user_meta($user->ID, 'wp_secure_digits_secret', true)) {
         return;
@@ -814,7 +990,7 @@ function wpsecuredigits_form() {
 }
 
 
-function wpsecuredigits_settings_page() {
+function my_google_authenticator_settings_page() {
     if (!current_user_can('manage_options')) {
         return;
     }
@@ -829,20 +1005,20 @@ function wpsecuredigits_settings_page() {
 
   
 //update_option('wp_secure_digits_code_length', intval($_POST['code_length']));
-add_filter('wp_authenticate_user', 'wpsecuredigits_login_hook', 10, 2);
+add_filter('wp_authenticate_user', 'my_google_authenticator_login_hook', 10, 2);
 
 
 // Générer des codes de secours lors de la création d'un nouvel utilisateur
-function wpsecuredigits_user_register($user_id) {
-  //  wpsecuredigits_generate_backup_codes($user_id);
+function my_google_authenticator_user_register($user_id) {
+  //  my_google_authenticator_generate_backup_codes($user_id);
 }
-add_action('user_register', 'wpsecuredigits_user_register');
+add_action('user_register', 'my_google_authenticator_user_register');
 
 // Générer des codes de secours lors de la mise à jour d'un utilisateur existant
-function wpsecuredigits_profile_update($user_id) {
-  //  wpsecuredigits_generate_backup_codes($user_id);
+function my_google_authenticator_profile_update($user_id) {
+  //  my_google_authenticator_generate_backup_codes($user_id);
 }
-add_action('profile_update', 'wpsecuredigits_profile_update');
+add_action('profile_update', 'my_google_authenticator_profile_update');
 
 // apres 2303
 
@@ -924,12 +1100,12 @@ add_action('edit_user_profile', 'wp_secure_digits_add_generate_codes_button');
 
 // cryptage cle de securite
 
-function wpsecuredigits_add_user_2fa_secret($user_id, $secret) {
+function my_google_authenticator_add_user_2fa_secret($user_id, $secret) {
     global $wpdb;
     $table_name = $wpdb->prefix . 'wp_secure_digits_secrets';
 
     $key = wp_generate_password(32);
-    $encrypted_key = wpsecuredigits_encrypt_key($key, $secret);
+    $encrypted_key = my_google_authenticator_encrypt_key($key, $secret);
 
     $wpdb->insert(
         $table_name,
@@ -951,23 +1127,23 @@ function wpsecuredigits_add_user_2fa_secret($user_id, $secret) {
 
 
 // Mettre à jour la valeur de la case 2FA dans la base de données lors de la décoche de la case
-function wpsecuredigits_update_user_2fa($user_id) {
+function my_google_authenticator_update_user_2fa($user_id) {
     if (isset($_POST['wp_secure_digits_2fa_enabled']) && $_POST['wp_secure_digits_2fa_enabled'] == 0) {
         update_user_meta($user_id, 'wp_secure_digits_2fa_enabled', 0);
     }
 }
-add_action('personal_options_update', 'wpsecuredigits_update_user_2fa');
-add_action('edit_user_profile_update', 'wpsecuredigits_update_user_2fa');
+add_action('personal_options_update', 'my_google_authenticator_update_user_2fa');
+add_action('edit_user_profile_update', 'my_google_authenticator_update_user_2fa');
 
 //maj 
 
-function wpsecuredigits_update_options() {
-    check_admin_referer('wpsecuredigits_update_options');
+function my_google_authenticator_update_options() {
+    check_admin_referer('my_google_authenticator_update_options');
 
     $enable_2fa = isset($_POST['enable_2fa']) ? 'on' : 'off';
-    update_option('wpsecuredigits_enable_2fa', $enable_2fa);
+    update_option('my_google_authenticator_enable_2fa', $enable_2fa);
 
     wp_redirect(add_query_arg('settings-updated', 'true', wp_get_referer()));
     exit;
 }
-add_action('admin_post_wpsecuredigits_update_options', 'wpsecuredigits_update_options');
+add_action('admin_post_my_google_authenticator_update_options', 'my_google_authenticator_update_options');
