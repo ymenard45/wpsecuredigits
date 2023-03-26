@@ -618,7 +618,14 @@ function my_google_authenticator_settings_init() {
 		'my_google_authenticator_pluginPage_section' // Section
 		);
 
-		
+		// champ code de secours
+		add_settings_field(
+		'wpsecuredigits_reset_backup_codes',
+		__('Réinitialiser les codes de secours', 'wpsecuredigits'),
+		'wpsecuredigits_reset_backup_codes_callback',
+		'wpsecuredigits',
+		'wpsecuredigits_general_section'
+		);
 
 register_setting('my_google_authenticator', 'my_google_authenticator_lock_duration');
 
@@ -903,7 +910,7 @@ function my_google_authenticator_margin_render() {
 function my_google_authenticator_spacing_render() {
     $options = get_option('my_google_authenticator_settings');
     echo '<input type="number" name="my_google_authenticator_settings[spacing]" value="' . esc_attr
-
+}
 
 /* Afficher la case à cocher "Autoriser la désactivation de 2FA" */
  function my_google_authenticator_allow_disable_2fa_render() {
@@ -1026,32 +1033,242 @@ function display_error_message() {
 }
 // if ($password_incorrect){echo display_anonymous_error_message();} elseif ($account_not_found) { echo display_anonymous_error_message();}
 
+/* MENUS */
+
+// Ajouter le menu et la page des paramètres
+function wpsecuredigits_add_settings_page() {
+    add_options_page(
+        __('WP Secured Digits', 'wpsecuredigits'),
+        __('WP Secured Digits', 'wpsecuredigits'),
+        'manage_options',
+        'wpsecuredigits_settings',
+        'wpsecuredigits_render_settings_page'
+    );
+}
+add_action('admin_menu', 'wpsecuredigits_add_settings_page');
+
+// Enregistre les paramètres
+function wpsecuredigits_settings_init() {
+    // Enregistre les paramètres
+    register_setting('wpsecuredigits_settings_group', 'wpsecuredigits_options');
+
+    // Ajoute les sections et les champs
+    // Section 1: Paramètres généraux
+    add_settings_section(
+        'wpsecuredigits_general_settings_section',
+        __('Paramètres généraux', 'wpsecuredigits'),
+        'wpsecuredigits_general_settings_section_callback',
+        'wpsecuredigits_settings'
+    );
+
+    // Ajoutez ici les champs pour les paramètres généraux
+
+    // Section 2: Options de personnalisation
+    add_settings_section(
+        'wpsecuredigits_customization_settings_section',
+        __('Options de personnalisation', 'wpsecuredigits'),
+        'wpsecuredigits_customization_settings_section_callback',
+        'wpsecuredigits_settings'
+    );
+
+    // Ajoutez ici les champs pour les options de personnalisation
+
+    // Section 3: Options avancées
+    add_settings_section(
+        'wpsecuredigits_advanced_settings_section',
+        __('Options avancées', 'wpsecuredigits'),
+        'wpsecuredigits_advanced_settings_section_callback',
+        'wpsecuredigits_settings'
+    );
+
+    // Ajoutez ici les champs pour les options avancées
+}
+add_action('admin_init', 'wpsecuredigits_settings_init');
+
+
+// Fonction pour afficher la page des paramètres
+ 
+function wpsecuredigits_render_settings_page() {
+    ?>
+    <div class="wrap">
+        <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
+        <form action="options.php" method="post">
+            <?php
+            settings_fields('wpsecuredigits_settings_group');
+            do_settings_sections('wpsecuredigits_settings');
+            submit_button();
+            ?>
+        </form>
+    </div>
+    <?php
+}
+
+
 /* PARTIE 2FA GOOGLE */
 
-$qrCodeUrl = $google2fa->getQRCodeGoogleUrl(
-    get_bloginfo('name'),
-    $current_user->user_email,
-    $secret
-);
-
-$verificationCode = $_POST['verification_code'];
-$isValid = $google2fa->verifyCode($secret, $verificationCode);
-
-if ($isValid) {
-    // Code valide, connectez l'utilisateur.
-} else {
-    // Code invalide, affichez un message d'erreur.
+// generation secret pour un user
+function wpsecuredigits_generate_secret($user_id) {
+    $googleAuthenticator = new PHPGangsta_GoogleAuthenticator();
+    $secret = $googleAuthenticator->createSecret();
+    update_user_meta($user_id, 'wpsecuredigits_secret', $secret);
+    return $secret;
 }
 
-$backup_codes = [];
-for ($i = 0; $i < 5; $i++) {
-    $backup_codes[] = wp_generate_password(8, false, false);
+// genere QR-code
+function wpsecuredigits_generate_qr_code($user_id, $secret) {
+    $googleAuthenticator = new PHPGangsta_GoogleAuthenticator();
+    $user = get_userdata($user_id);
+    $qrCodeUrl = $googleAuthenticator->getQRCodeGoogleUrl(
+        $user->user_login,
+        $secret,
+        get_bloginfo('name')
+    );
+    return $qrCodeUrl;
 }
 
-// Vérifiez si le code de vérification saisi est un code de secours valide
-if (in_array($verificationCode, $backup_codes)) {
-    // Marquez le code de secours comme utilisé et connectez l'utilisateur
-} else {
-    // Le code de vérification est invalide
+// authentifier les utilisateurs
+
+function wpsecuredigits_authenticate_user($user, $username, $password) {
+  
+    // (Code pour vérifier le nom d'utilisateur et le mot de passe)
+	// Vérifiez d'abord si les champs ne sont pas vides
+    if (empty($username) || empty($password)) {
+        return new WP_Error('empty_fields', __('Le nom d\'utilisateur et le mot de passe sont requis.', 'wpsecuredigits'));
+    }
+
+    // Vérifiez le nom d'utilisateur et le mot de passe
+    $user = wp_authenticate_username_password(null, $username, $password);
+
+    // Si une erreur est renvoyée, arrêtez le processus d'authentification
+    if (is_wp_error($user)) {
+        return $user;
+    }
+
+    $user_id = $user->ID;
+    $secret = get_user_meta($user_id, 'wpsecuredigits_secret', true);
+	
+    // ...
+
+    $user_id = $user->ID;
+    $secret = get_user_meta($user_id, 'wpsecuredigits_secret', true);
+
+function wpsecuredigits_generate_backup_codes($user_id) {
+    $backup_codes = [];
+    for ($i = 0; $i < 5; $i++) {
+        $backup_codes[] = wp_generate_password(8, false, false);
+    }
+
+    update_user_meta($user_id, 'wpsecuredigits_backup_codes', $backup_codes);
 }
+
+add_filter('authenticate', 'wpsecuredigits_authenticate_user', 30, 3);
+
+/* codes de secours */
+
+// generer les codes
+function wpsecuredigits_generate_backup_codes($user_id) {
+    $backup_codes = [];
+    for ($i = 0; $i < 5; $i++) {
+        $backup_codes[] = wp_generate_password(8, false, false);
+    }
+
+    update_user_meta($user_id, 'wpsecuredigits_backup_codes', $backup_codes);
+}
+
+// reintialiser les codes de secoursfunction wpsecuredigits_reset_backup_codes_callback() {
+    $user_id = get_current_user_id();
+    wpsecuredigits_generate_backup_codes($user_id);
+
+    echo '<p>' . __('Les codes de secours ont été réinitialisés.', 'wpsecuredigits') . '</p>';
+}
+
+// fonction pour afficher les codes de secours à l'utilisateur
+function wpsecuredigits_display_backup_codes() {
+    $user_id = get_current_user_id();
+    $backup_codes = get_user_meta($user_id, 'wpsecuredigits_backup_codes', true);
+    
+    if (empty($backup_codes)) {
+        echo '<p>' . __('Aucun code de secours n\'a été généré pour votre compte.', 'wpsecuredigits') . '</p>';
+        return;
+    }
+    
+    echo '<h3>' . __('Vos codes de secours :', 'wpsecuredigits') . '</h3>';
+    echo '<ul>';
+    
+    foreach ($backup_codes as $code) {
+        echo '<li>' . esc_html($code) . '</li>';
+    }
+    
+    echo '</ul>';
+}
+
+// shortcode pour afficher les codes de secours sur une page ou un article
+function wpsecuredigits_backup_codes_shortcode($atts) {
+    ob_start();
+    wpsecuredigits_display_backup_codes();
+    return ob_get_clean();
+}
+
+add_shortcode('wpsecuredigits_backup_codes', 'wpsecuredigits_backup_codes_shortcode');
+
+// ajout zone vérification du code 
+function wpsecuredigits_add_2fa_field() {
+    echo '<p>';
+    echo '<label for="wpsecuredigits_2fa_code">' . __('Code 2FA', 'wpsecuredigits') . '<br>';
+    echo '<input type="text" name="wpsecuredigits_2fa_code" id="wpsecuredigits_2fa_code" class="input" value="" size="20"></label>';
+    echo '</p>';
+}
+
+add_action('login_form', 'wpsecuredigits_add_2fa_field');
+
+/* ---- Integration logo ----*/
+function wpsecuredigits_login_logo() {
+    $logo_url = get_option('wpsecuredigits_logo_url');
+    
+    if (empty($logo_url)) {
+        return;
+    }
+
+    echo '<style type="text/css">
+        #login h1 a, .login h1 a {
+            background-image: url(' . esc_url($logo_url) . ');
+            height: 100px;
+            width: 300px;
+            background-size: contain;
+            background-repeat: no-repeat;
+            padding-bottom: 30px;
+        }
+    </style>';
+}
+
+add_action('login_head', 'wpsecuredigits_login_logo');
+
+
+/* --- MENU --- */
+function wpsecuredigits_render_settings_page() {
+    ?>
+    <div class="wrap">
+        <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
+        <form action="options.php" method="post">
+            <?php
+            settings_fields('wpsecuredigits_options');
+            do_settings_sections('wpsecuredigits_settings');
+            submit_button();
+            ?>
+        </form>
+    </div>
+    <?php
+}
+
+function wpsecuredigits_add_settings_link() {
+    add_options_page(
+        __('WP Secured Digits', 'wpsecuredigits'),
+        __('WP Secured Digits', 'wpsecuredigits'),
+        'manage_options',
+        'wpsecuredigits_settings',
+        'wpsecuredigits_render_settings_page'
+    );
+}
+
+add_action('admin_menu', 'wpsecuredigits_add_settings_link');
 
