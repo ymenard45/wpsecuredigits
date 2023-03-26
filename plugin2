@@ -864,7 +864,7 @@ function my_google_authenticator_add_dashboard_page() {
 add_action('admin_menu', 'my_google_authenticator_add_dashboard_page');
 
 /* tableau de bord */
-function my_google_authenticator_dashboard_page() {
+function wpsecuredigits_dashboard_page() {
     global $wpdb;
 
     $table_name = $wpdb->prefix . 'my_google_authenticator_stats';
@@ -886,6 +886,7 @@ function my_google_authenticator_dashboard_page() {
 
     echo '</div>';
 }
+add_action('admin_menu', 'wpsecuredigits_add_dashboard_page');
 
 /* creer fiches poursuivre les connexions echouees */
 function my_google_authenticator_create_failed_logins_table() {
@@ -1072,10 +1073,13 @@ function wpsecuredigits_add_settings_page() {
 }
 add_action('admin_menu', 'wpsecuredigits_add_settings_page');
 
+// Fonction pour afficher la page des paramètres
+
 // Enregistre les paramètres
 function wpsecuredigits_settings_init() {
     // Enregistre les paramètres
     register_setting('wpsecuredigits_settings_group', 'wpsecuredigits_options');
+	
 
     // Ajoute les sections et les champs
     // Section 1: Paramètres généraux
@@ -1086,8 +1090,16 @@ function wpsecuredigits_settings_init() {
         'wpsecuredigits_settings'
     );
 
-    // Ajoutez ici les champs pour les paramètres généraux
+	register_setting('wpsecuredigits_options', 'wpsecuredigits_options', 'wpsecuredigits_options_validate');    // General Settings
+    add_settings_section('wpsecuredigits_general_settings', __('General Settings', 'wpsecuredigits'), 'wpsecuredigits_general_settings_section_callback', 'wpsecuredigits_options');
+    add_settings_field('wpsecuredigits_limit_login_attempts', __('Limit Login Attempts', 'wpsecuredigits'), 'wpsecuredigits_limit_login_attempts_render', 'wpsecuredigits_options', 'wpsecuredigits_general_settings');
+    add_settings_field('wpsecuredigits_temporary_lock_duration', __('Temporary Lock Duration', 'wpsecuredigits'), 'wpsecuredigits_temporary_lock_duration_render', 'wpsecuredigits_options', 'wpsecuredigits_general_settings');
+    add_settings_field('wpsecuredigits_block_suspicious_ip', __('Block Suspicious IP', 'wpsecuredigits'), 'wpsecuredigits_block_suspicious_ip_render', 'wpsecuredigits_options', 'wpsecuredigits_general_settings');
+    add_settings_field('wpsecuredigits_email_notifications', __('Email Notifications', 'wpsecuredigits'), 'wpsecuredigits_email_notifications_render', 'wpsecuredigits_options', 'wpsecuredigits_general_settings');
+    add_settings_field('wpsecuredigits_disable_xmlrpc', __('Disable XML-RPC', 'wpsecuredigits'), 'wpsecuredigits_disable_xmlrpc_render', 'wpsecuredigits_options', 'wpsecuredigits_general_settings');
+    add_settings_field('wpsecuredigits_protect_rest_api', __('Protect REST API', 'wpsecuredigits'), 'wpsecuredigits_protect_rest_api_render', 'wpsecuredigits_options', 'wpsecuredigits_general_settings');
 
+    
     // Section 2: Options de personnalisation
     add_settings_section(
         'wpsecuredigits_customization_settings_section',
@@ -1107,11 +1119,53 @@ function wpsecuredigits_settings_init() {
     );
 
     // Ajoutez ici les champs pour les options avancées
+	// Customization Settings
+    add_settings_section('wpsecuredigits_customization_settings', __('Customization Settings', 'wpsecuredigits'), 'wpsecuredigits_customization_settings_section_callback', 'wpsecuredigits_options');
+    add_settings_field('wpsecuredigits_wallpaper', __('Wallpaper', 'wpsecuredigits'), 'wpsecuredigits_wallpaper_render', 'wpsecuredigits_options', 'wpsecuredigits_customization_settings');
+    add_settings_field('wpsecuredigits_mobile_wallpaper', __('Mobile Wallpaper', 'wpsecuredigits'), 'wpsecuredigits_mobile_wallpaper_render', 'wpsecuredigits_options', 'wpsecuredigits_customization_settings');
+    add_settings_field('wpsecuredigits_colors', __('Colors', 'wpsecuredigits'), 'wpsecuredigits_colors_render', 'wpsecuredigits_options', 'wpsecuredigits_customization_settings');
+    add_settings_field('wpsecuredigits_transparency', __('Transparency', 'wpsecuredigits'), 'wpsecuredigits_transparency_render', 'wpsecuredigits_options', 'wpsecuredigits_customization_settings');
+    add_settings_field('wpsecuredigits_fonts', __('Fonts', 'wpsecuredigits'), 'wpsecuredigits_fonts_render', 'wpsecuredigits_options', 'wpsecuredigits_customization_settings');
+    add_settings_field('wpsecuredigits_text_sizes', __('Text Sizes', 'wpsecuredigits'), 'wpsecuredigits_text_sizes_render', 'wpsecuredigits_options', 'wpsecuredigits_customization_settings');
+    add_settings_field('wpsecuredigits_margins', __('Margins', 'wpsecuredigits'), 'wpsecuredigits_margins_render', 'wpsecuredigits_options', 'wpsecuredigits_customization_settings');
+    add_settings_field('wpsecuredigits_spacings', __('Spacings', 'wpsecuredigits'), 'wpsecuredigits_spacings_render', 'wpsecuredigits_options', 'wpsecuredigits_customization_settings');
+
+    // Advanced Settings
+    add_settings_section('wpsecuredigits_advanced_settings', __('Advanced Settings', 'wpsecuredigits'), 'wpsecuredigits_advanced_settings_section_callback', 'wpsecuredigits_options');
+    add_settings_field('wpsecuredigits_block_username_admin', __('Block Username "Admin"', 'wpsecuredigits'), 'wpsecuredigits_block_username_admin_render', 'wpsecuredigits_options', 'wpsecuredigits_advanced_settings');
+    add_settings_field('wpsecuredigits_block_usernames_list', __('Block Usernames List', 'wpsecuredigits'), 'wpsecuredigits_block_usernames_list_render', 'wpsecuredigits_options', 'wpsecuredigits_advanced_settings');
+    add_settings_field('wpsecuredigits_disable_rest_api', __('Disable REST API', 'wpsecuredigits'), 'wpsecuredigits_disable_rest_api_render', 'wpsecuredigits_options', 'wpsecuredigits_advanced_settings');
+    add_settings_field('wpsecuredigits_send_daily_report', __('Send Daily Report', 'wpsecuredigits'), 'wpsecuredigits_send_daily_report_render', 'wpsecuredigits_options', 'wpsecuredigits_advanced_settings');
+    add_settings_field('wpsecuredigits_security_recommendations', __('Security Recommendations', 'wpsecuredigits'), 'wpsecuredigits_security_recommendations_render', 'wpsecuredigits_options', 'wpsecuredigits_advanced_settings');
+    add_settings_field('wpsecuredigits_enable_secure_headers', __('Enable Secure Headers', 'wpsecuredigits'), 'wpsecuredigits_enable_secure_headers_render', 'wpsecuredigits_options', 'wpsecuredigits_advanced_settings');
+
 }
 add_action('admin_init', 'wpsecuredigits_settings_init');
 
+function wpsecuredigits_options_validate($input) {
+    $output = array();
 
-// Fonction pour afficher la page des paramètres
+    // Validate and sanitize customization settings
+    $output['wpsecuredigits_wallpaper'] = sanitize_text_field($input['wpsecuredigits_wallpaper']);
+    $output['wpsecuredigits_color'] = sanitize_hex_color($input['wpsecuredigits_color']);
+    $output['wpsecuredigits_transparency'] = absint($input['wpsecuredigits_transparency']);
+    $output['wpsecuredigits_font'] = sanitize_text_field($input['wpsecuredigits_font']);
+    $output['wpsecuredigits_font_size'] = absint($input['wpsecuredigits_font_size']);
+    $output['wpsecuredigits_margins'] = absint($input['wpsecuredigits_margins']);
+    $output['wpsecuredigits_spacings'] = absint($input['wpsecuredigits_spacings']);
+
+    // Validate and sanitize advanced settings
+    $output['wpsecuredigits_block_username_admin'] = isset($input['wpsecuredigits_block_username_admin']) ? 1 : 0;
+    $output['wpsecuredigits_block_usernames_list'] = sanitize_textarea_field($input['wpsecuredigits_block_usernames_list']);
+    $output['wpsecuredigits_disable_rest_api'] = isset($input['wpsecuredigits_disable_rest_api']) ? 1 : 0;
+    $output['wpsecuredigits_send_daily_report'] = isset($input['wpsecuredigits_send_daily_report']) ? 1 : 0;
+    $output['wpsecuredigits_security_recommendations'] = sanitize_textarea_field($input['wpsecuredigits_security_recommendations']);
+    $output['wpsecuredigits_enable_secure_headers'] = isset($input['wpsecuredigits_enable_secure_headers']) ? 1 : 0;
+
+    return $output;
+}
+
+
  
 /* PARTIE 2FA GOOGLE */
 
