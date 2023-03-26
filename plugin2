@@ -64,7 +64,7 @@ function wpsecuredigits_advanced_settings_section_callback() {
 }
 
 add_action('admin_init', 'wpsecuredigits_settings_init');
-
+ 
 
 // Vos chaînes de texte originales
 $menu_title = __('Mon Google Authenticator', 'mon-google-authenticator');
@@ -887,6 +887,31 @@ function wpsecuredigits_dashboard_page() {
     echo '</div>';
 }
 add_action('admin_menu', 'wpsecuredigits_add_dashboard_page');
+
+// creation fichier stat
+
+function wpsecuredigits_create_tables() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'my_google_authenticator_stats';
+
+    if($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+        $charset_collate = $wpdb->get_charset_collate();
+
+        $sql = "CREATE TABLE $table_name (
+            id BIGINT(20) NOT NULL AUTO_INCREMENT,
+            ip VARCHAR(45) NOT NULL,
+            status ENUM('failed', 'success', 'locked') NOT NULL,
+            timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id)
+        ) $charset_collate;";
+
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+}
+
+register_activation_hook(__FILE__, 'wpsecuredigits_create_tables');
+
 
 /* creer fiches poursuivre les connexions echouees */
 function my_google_authenticator_create_failed_logins_table() {
