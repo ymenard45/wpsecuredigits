@@ -21,6 +21,11 @@ add_action('plugins_loaded', 'mon_google_authenticator_load_textdomain');
 
 require_once plugin_dir_path(__FILE__) . 'lib/Google-Authentificator.php';
 
+require_once 'vendor/autoload.php';
+$google2fa = new PHPGangsta_GoogleAuthenticator();
+$secret = $google2fa->createSecret();
+
+
 // traduction des messages dans les fichiers enfants
 function my_google_authenticator_enqueue_admin_scripts($hook) {
     if ('settings_page_my_google_authenticator_settings' !== $hook) {
@@ -36,6 +41,8 @@ function my_google_authenticator_enqueue_admin_scripts($hook) {
     wp_localize_script('my-google-authenticator-admin', 'my_google_authenticator_i18n', $translation_array);
 }
 add_action('admin_enqueue_scripts', 'my_google_authenticator_enqueue_admin_scripts');
+
+add_filter('xmlrpc_enabled', '__return_false');
 
 
 // Vos chaînes de texte originales
@@ -429,6 +436,16 @@ function my_google_authenticator_settings_init() {
         $permission_section_id
     );
 
+	add_settings_field(
+		'wpsecuredigits_email_method', // ID du champ
+		__('Méthode d\'envoi des e-mails', 'wpsecuredigits'), // Titre du champ
+		'wpsecuredigits_email_method_render', // Fonction de rendu du champ
+		'wpsecuredigits_pluginPage', // Page de réglages
+		'wpsecuredigits_pluginPage_section' // Section de réglages
+	);
+
+
+
 	 $permission_section_id = 'my_google_authenticator_permission_section';
 
 			add_settings_section(
@@ -438,6 +455,7 @@ function my_google_authenticator_settings_init() {
 				$option_group
 			);
 
+			// peuvent desactiver 2FA ou pas
 			add_settings_field(
 				'my_google_authenticator_allow_disable_2fa',
 				__('Autoriser la désactivation de 2FA', 'my-google-authenticator'),
@@ -446,6 +464,7 @@ function my_google_authenticator_settings_init() {
 				$permission_section_id
 			);
 
+			// groupes
 			add_settings_field(
 				'my_google_authenticator_user_groups',
 				__('Groupes d\'utilisateurs concernés', 'my-google-authenticator'),
@@ -453,13 +472,438 @@ function my_google_authenticator_settings_init() {
 				$option_group,
 				$permission_section_id
 			);
-				 
+		
+			// polices
+			add_settings_field(
+				'my_google_authenticator_font_family',
+				__('Police de caractères', 'my-google-authenticator'),
+				'my_google_authenticator_font_family_render',
+				'my_google_authenticator',
+				'my_google_authenticator_customization_section'
+			);
+
+			// Marge
+			add_settings_field(
+				'my_google_authenticator_margin',
+				__('Marge', 'my-google-authenticator'),
+				'my_google_authenticator_margin_render',
+				'my_google_authenticator',
+				'my_google_authenticator_customization_section'
+			);
+
+			// Espacement
+			add_settings_field(
+				'my_google_authenticator_spacing',
+				__('Espacement', 'my-google-authenticator'),
+				'my_google_authenticator_spacing_render',
+				'my_google_authenticator',
+				'my_google_authenticator_customization_section'
+			);
+
+		// couleur arriere plan
+		add_settings_field(
+			'my_google_authenticator_background_color',
+			__('Background color', 'my-google-authenticator'),
+			'my_google_authenticator_background_color_render',
+			'my_google_authenticator_pluginPage',
+			'my_google_authenticator_pluginPage_section'
+		);
+
+		// couleur textes
+		add_settings_field(
+			'my_google_authenticator_text_color',
+			__('Text color', 'my-google-authenticator'),
+			'my_google_authenticator_text_color_render',
+			'my_google_authenticator_pluginPage',
+			'my_google_authenticator_pluginPage_section'
+		);
+
+		// couleur bouton
+		add_settings_field(
+			'my_google_authenticator_button_color',
+			__('Button color', 'my-google-authenticator'),
+			'my_google_authenticator_button_color_render',
+			'my_google_authenticator_pluginPage',
+			'my_google_authenticator_pluginPage_section'
+		);
+
+		// fontes
+		add_settings_field(
+			'my_google_authenticator_font_family',
+			__('Font Family', 'my-google-authenticator'),
+			'my_google_authenticator_font_family_render',
+			'my_google_authenticator_pluginPage',
+			'my_google_authenticator_pluginPage_section'
+		);
+
+		// wallpaper desktop
+		add_settings_field(
+			'my_google_authenticator_desktop_wallpaper_url',
+			__('Desktop wallpaper URL', 'my-google-authenticator'),
+			'my_google_authenticator_desktop_wallpaper_url_render',
+			'my_google_authenticator_pluginPage',
+			'my_google_authenticator_pluginPage_section'
+		);
+
+		// wallpaper mobile
+		add_settings_field(
+			'my_google_authenticator_mobile_wallpaper_url',
+			__('Mobile wallpaper URL', 'my-google-authenticator'),
+			'my_google_authenticator_mobile_wallpaper_url_render',
+			'my_google_authenticator_pluginPage',
+			'my_google_authenticator_pluginPage_section'
+		);
+
+		// messages 
+		add_settings_field(
+		'my_google_authenticator_custom_message',
+		__('Custom message', 'my-google-authenticator'),
+		'my_google_authenticator_custom_message_render',
+		'my_google_authenticator_pluginPage',
+		'my_google_authenticator_pluginPage_section'
+		);
+	
+		// limit connexion
+		add_settings_field(
+			'login_attempts_limit',
+			__('Limite des tentatives de connexion', 'my-google-authenticator'),
+			'my_google_authenticator_login_attempts_limit_render',
+			'my_google_authenticator',
+			'my_google_authenticator_general_section'
+		);
+		register_setting('my_google_authenticator', 'login_attempts_limit');
+		
+		// duree de blocage
+		add_settings_field(
+		'my_google_authenticator_lock_duration',
+		__('Durée du verrouillage temporaire (en minutes)', 'my-google-authenticator'),
+		'my_google_authenticator_lock_duration_render',
+		'my_google_authenticator',
+		'my_google_authenticator_security'
+		);
+		
+		// Disable REST API option
+		add_settings_field(
+			'my_google_authenticator_disable_rest_api',
+			__('Désactiver l\'API REST de WordPress', 'my-google-authenticator'),
+			'my_google_authenticator_disable_rest_api_render',
+			'my_google_authenticator_pluginPage',
+			'my_google_authenticator_pluginPage_section'
+		);
+
+		// Daily email notification option
+		add_settings_field(
+			'my_google_authenticator_daily_email_notification',
+			__('Activer les notifications par e-mail quotidiennes', 'my-google-authenticator'),
+			'my_google_authenticator_daily_email_notification_render',
+			'my_google_authenticator_pluginPage',
+			'my_google_authenticator_pluginPage_section'
+		);
+
+		// Secure headers option
+		add_settings_field(
+			'my_google_authenticator_enable_secure_headers',
+			__('Activer les en-têtes de sécurité', 'my-google-authenticator'),
+			'my_google_authenticator_enable_secure_headers_render',
+			'my_google_authenticator_pluginPage',
+			'my_google_authenticator_pluginPage_section'
+		);
+				
+		// blocage d'identifiants particuliers
+		add_settings_field(
+		'blocked_usernames', // ID
+		__('Noms d\'utilisateur bloqués', 'my-google-authenticator'), // Titre
+		'my_google_authenticator_blocked_usernames_render', // Fonction de rendu
+		'my_google_authenticator_pluginPage', // Page
+		'my_google_authenticator_pluginPage_section' // Section
+		);
+
+		
+
+register_setting('my_google_authenticator', 'my_google_authenticator_lock_duration');
+
 	 
 	 
 }
 
 // Ajoute la page d'options du plugin au menu d'administration de WordPress
 add_action('admin_menu', 'my_google_authenticator_add_settings_link');
+
+/* liste d'identifiant à bloquer séparé par des virgules */
+function my_google_authenticator_blocked_usernames_render() {
+    $options = get_option('my_google_authenticator_settings');
+    echo '<input type="text" name="my_google_authenticator_settings[blocked_usernames]" value="' . esc_attr($options['blocked_usernames']) . '" placeholder="admin,user2,user3" size="50">';
+}
+
+/* verifier si l'utilsateur est bloqué par son id */
+function my_google_authenticator_check_blocked_usernames($user, $username, $password) {
+    // Obtenez les options de réglage du plugin
+    $options = get_option('my_google_authenticator_settings');
+
+    // Vérifiez si les noms d'utilisateur bloqués sont définis
+    if (!empty($options['blocked_usernames'])) {
+        // Convertissez la chaîne en tableau
+        $blocked_usernames = array_map('trim', explode(',', $options['blocked_usernames']));
+
+        // Vérifiez si le nom d'utilisateur est dans la liste des noms d'utilisateur bloqués
+        if (in_array($username, $blocked_usernames)) {
+            return new WP_Error('blocked_username', __('<strong>ERREUR</strong> : Ce nom d\'utilisateur est bloqué.', 'my-google-authenticator'));
+        }
+    }
+
+    return $user;
+}
+
+add_filter('authenticate', 'my_google_authenticator_check_blocked_usernames', 30, 3);
+
+
+
+/* envoyer email quotidien */
+function my_google_authenticator_send_daily_email() {
+    $options = get_option('my_google_authenticator_settings');
+    if (isset($options['my_google_authenticator_daily_email_notification']) && $options['my_google_authenticator_daily_email_notification']) {
+        $admin_email = get_option('admin_email');
+        $subject = __('Rapport quotidien de sécurité My Google Authenticator', 'my-google-authenticator');
+        $message = "Voici le rapport quotidien de sécurité de votre site :\n\n"; // Contenu du message
+
+        // Récupérez les statistiques et informations pertinentes
+        $successful_logins = get_option('my_google_authenticator_successful_logins', 0);
+        $failed_logins = get_option('my_google_authenticator_failed_logins', 0);
+        $locked_accounts = get_option('my_google_authenticator_locked_accounts', array());
+        $blocked_ips = get_option('my_google_authenticator_blocked_ips', array());
+        
+        // Construisez le contenu du message
+        $message = "Voici le rapport quotidien de sécurité de votre site :\n\n";
+        $message .= "Connexions réussies : {$successful_logins}\n";
+        $message .= "Tentatives de connexion échouées : {$failed_logins}\n";
+        $message .= "Comptes verrouillés : " . count($locked_accounts) . "\n";
+        $message .= "Adresses IP bloquées : " . count($blocked_ips) . "\n";
+        
+        // Envoyez l'e-mail
+        wp_mail($admin_email, $subject, $message);
+    }
+}
+
+/* Cron pour envoyer les mails */
+function my_google_authenticator_cron_schedules($schedules) {
+    $schedules['daily'] = array(
+        'interval' => 86400,
+        'display' => __('Quotidien', 'my-google-authenticator')
+    );
+    return $schedules;
+}
+add_filter('cron_schedules', 'my_google_authenticator_cron_schedules');
+
+/* Planification de l'envoi de mail a admin */
+function my_google_authenticator_schedule_daily_email() {
+    if (!wp_next_scheduled('my_google_authenticator_send_daily_email')) {
+        wp_schedule_event(strtotime('tomorrow 6:00am'), 'daily', 'my_google_authenticator_send_daily_email');
+    }
+}
+add_action('wp', 'my_google_authenticator_schedule_daily_email');
+add_action('my_google_authenticator_send_daily_email', 'my_google_authenticator_send_daily_email');
+
+
+/* fonction de desactivation api */
+function my_google_authenticator_disable_rest_api_render() {
+    $options = get_option('my_google_authenticator_settings');
+    ?>
+    <input type='checkbox' name='my_google_authenticator_settings[my_google_authenticator_disable_rest_api]' <?php checked(isset($options['my_google_authenticator_disable_rest_api']), 1); ?> value='1'>
+    <?php
+}
+
+/* Fonction d'envoi de mail à l'administrateur */
+function my_google_authenticator_daily_email_notification_render() {
+    $options = get_option('my_google_authenticator_settings');
+    ?>
+    <input type='checkbox' name='my_google_authenticator_settings[my_google_authenticator_daily_email_notification]' <?php checked(isset($options['my_google_authenticator_daily_email_notification']), 1); ?> value='1'>
+    <?php
+}
+
+/* fonction pour activer les secury headers */
+function my_google_authenticator_enable_secure_headers_render() {
+    $options = get_option('my_google_authenticator_settings');
+    ?>
+    <input type='checkbox' name='my_google_authenticator_settings[my_google_authenticator_enable_secure_headers]' <?php checked(isset($options['my_google_authenticator_enable_secure_headers']), 1); ?> value='1'>
+    <?php
+}
+
+/* actions api/headers/mail */
+$options = get_option('my_google_authenticator_settings');
+
+// Disable REST API
+if (isset($options['my_google_authenticator_disable_rest_api']) && $options['my_google_authenticator_disable_rest_api']) {
+    add_filter('rest_authentication_errors', function ($result) {
+        if (!is_user_logged_in()) {
+            return new WP_Error('rest_not_logged_in', 'Vous n\'êtes pas autorisé à accéder à cette ressource.', array('status' => 401));
+        }
+        return $result;
+    });
+}
+
+// Secure headers
+if (isset($options['my_google_authenticator_enable_secure_headers']) && $options['my_google_authenticator_enable_secure_headers']) {
+    add_action('send_headers', function () {
+        header('X-Content-Type-Options: nosniff');
+        header('X-XSS-Protection: 1; mode=block');
+        header('X-Frame-Options: SAMEORIGIN');
+        header('Strict-Transport-Security: max-age=31536000; includeSubDomains; preload');
+    });
+}
+
+
+/* fonction pour le champ limite de connexion */
+function my_google_authenticator_login_attempts_limit_render() {
+    $options = get_option('login_attempts_limit');
+    echo '<input type="number" name="login_attempts_limit" value="' . $options . '">';
+}
+
+/* suivre et limiter les tentatives de connexion */
+function my_google_authenticator_failed_login($username) {
+    global $wpdb;
+    $ip_address = $_SERVER['REMOTE_ADDR'];
+    $table_name = $wpdb->prefix . 'failed_logins';
+
+    $wpdb->insert(
+        $table_name,
+        array(
+            'ip_address' => $ip_address,
+            'username' => $username,
+            'attempt_time' => current_time('mysql'),
+        )
+    );
+}
+add_action('wp_login_failed', 'my_google_authenticator_failed_login');
+
+/* verifier le nombre de tentatives de connexion */
+function my_google_authenticator_limit_login_attempts($user, $password) {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'failed_logins';
+    $ip_address = $_SERVER['REMOTE_ADDR'];
+
+    // Check failed login attempts for the IP address
+    $attempts = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_name WHERE ip_address = %s AND attempt_time > DATE_SUB(NOW(), INTERVAL 1 HOUR)", $ip_address));
+
+    // Maximum allowed attempts
+    $max_attempts = get_option('my_google_authenticator_max_attempts', 5);
+
+    if ($attempts >= $max_attempts) {
+        // Block the user
+        $lock_duration = get_option('my_google_authenticator_lock_duration', 15); // In minutes
+        $wpdb->insert($wpdb->prefix . 'account_locks', array(
+            'user_id' => $user->ID,
+            'lock_time' => current_time('mysql')
+        ));
+
+        return new WP_Error('too_many_attempts', sprintf(__('You have reached the maximum number of login attempts. Your account is temporarily locked for %d minutes.'), $lock_duration));
+    }
+
+    return $user;
+}
+add_filter('wp_authenticate_user', 'my_google_authenticator_limit_login_attempts', 30, 2);
+
+/*  table dans la base de données pour stocker les informations de verrouillage */
+function my_google_authenticator_plugin_activation() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'account_locks';
+
+    $sql = "CREATE TABLE $table_name (
+        id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+        user_id BIGINT(20) UNSIGNED NOT NULL,
+        lock_time DATETIME NOT NULL,
+        PRIMARY KEY (id),
+        KEY user_id (user_id)
+    );";
+
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    dbDelta($sql);
+}
+register_activation_hook(__FILE__, 'my_google_authenticator_plugin_activation');
+
+
+
+/* page de statistiques */
+function my_google_authenticator_add_dashboard_page() {
+    add_menu_page(
+        'My Google Authenticator Dashboard',
+        'My Google Authenticator',
+        'manage_options',
+        'my-google-authenticator-dashboard',
+        'my_google_authenticator_dashboard_page',
+        'dashicons-shield'
+    );
+}
+add_action('admin_menu', 'my_google_authenticator_add_dashboard_page');
+
+/* tableau de bord */
+function my_google_authenticator_dashboard_page() {
+    global $wpdb;
+
+    $table_name = $wpdb->prefix . 'my_google_authenticator_stats';
+    $failed_attempts = $wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE status = 'failed'");
+    $successful_attempts = $wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE status = 'success'");
+    $locked_accounts = $wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE status = 'locked'");
+    $suspicious_ips = $wpdb->get_var("SELECT COUNT(DISTINCT ip) FROM $table_name WHERE status = 'failed'");
+
+    echo '<div class="wrap">';
+    echo '<h1>' . esc_html__('Statistiques de connexion', 'my-google-authenticator') . '</h1>';
+
+    echo '<h2>' . esc_html__('Tentatives de connexion', 'my-google-authenticator') . '</h2>';
+    echo '<p>' . sprintf(esc_html__('Échouées : %d', 'my-google-authenticator'), $failed_attempts) . '</p>';
+    echo '<p>' . sprintf(esc_html__('Réussies : %d', 'my-google-authenticator'), $successful_attempts) . '</p>';
+
+    echo '<h2>' . esc_html__('Sécurité', 'my-google-authenticator') . '</h2>';
+    echo '<p>' . sprintf(esc_html__('Comptes verrouillés : %d', 'my-google-authenticator'), $locked_accounts) . '</p>';
+    echo '<p>' . sprintf(esc_html__('Adresses IP suspectes : %d', 'my-google-authenticator'), $suspicious_ips) . '</p>';
+
+    echo '</div>';
+}
+
+/* creer fiches poursuivre les connexions echouees */
+function my_google_authenticator_create_failed_logins_table() {
+    global $wpdb;
+    $charset_collate = $wpdb->get_charset_collate();
+    $table_name = $wpdb->prefix . 'failed_logins';
+
+    $sql = "CREATE TABLE $table_name (
+        id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+        ip_address varchar(45) NOT NULL,
+        username varchar(60) NOT NULL,
+        attempt_time datetime NOT NULL,
+        PRIMARY KEY (id)
+    ) $charset_collate;";
+
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    dbDelta($sql);
+}
+register_activation_hook(__FILE__, 'my_google_authenticator_create_failed_logins_table');
+
+
+/* choix des polices */
+function my_google_authenticator_font_family_render() {
+    $options = get_option('my_google_authenticator_settings');
+    $font_families = array('Arial', 'Verdana', 'Tahoma', 'Times New Roman', 'Courier New');
+    echo '<select name="my_google_authenticator_settings[font_family]">';
+    foreach ($font_families as $font_family) {
+        echo '<option value="' . $font_family . '"' . selected($options['font_family'], $font_family, false) . '>' . $font_family . '</option>';
+    }
+    echo '</select>';
+}
+function my_google_authenticator_font_size_render() {
+    $options = get_option('my_google_authenticator_settings');
+    echo '<input type="number" name="my_google_authenticator_settings[font_size]" value="' . esc_attr($options['font_size']) . '" min="12" max="36" step="1">';
+}
+
+/* personnalisation marges et espacement */
+function my_google_authenticator_margin_render() {
+    $options = get_option('my_google_authenticator_settings');
+    echo '<input type="number" name="my_google_authenticator_settings[margin]" value="' . esc_attr($options['margin']) . '" min="0" max="50" step="1">';
+}
+
+function my_google_authenticator_spacing_render() {
+    $options = get_option('my_google_authenticator_settings');
+    echo '<input type="number" name="my_google_authenticator_settings[spacing]" value="' . esc_attr
+
 
 /* Afficher la case à cocher "Autoriser la désactivation de 2FA" */
  function my_google_authenticator_allow_disable_2fa_render() {
@@ -483,6 +927,22 @@ function my_google_authenticator_user_groups_render() {
     echo "</select>";
 }
 
+/* choix du type de message */
+function wpsecuredigits_send_email($user_id) {
+    // Récupérez les options du plugin
+    $options = get_option('wpsecuredigits_settings');
+    $email_method = $options['wpsecuredigits_email_method'];
+
+    if ($email_method == 'standard') {
+        // Envoyez le message standard
+    } elseif ($email_method == 'custom_page') {
+        // Créez et envoyez un e-mail avec les shortcodes
+        // et les instructions pour accéder à la page personnalisée
+    }
+}
+
+
+
 /* afficher une description pour la section "Permission" */
 function my_google_authenticator_permission_section_callback() {
     echo __('Définir les permissions pour la désactivation de la 2FA et les groupes d\'utilisateurs concernés.', 'my-google-authenticator');
@@ -505,5 +965,93 @@ function my_google_authenticator_options_page() {
     <?php
 }
 
+// shortcodes
+function wpsecuredigits_send_qrcode_shortcode($atts) {
+    $atts = shortcode_atts(array(
+        'custom_message' => ''
+    ), $atts, 'wpsecuredigits_send_qrcode');
 
+    $user = wp_get_current_user();
+    $qrcode_url = wpsecuredigits_generate_qrcode_url($user); // Générez l'URL du QR-code pour l'utilisateur
+
+    if (!empty($atts['custom_message'])) {
+        $message = $atts['custom_message'];
+    } else {
+        $message = __("Voici votre QR-code pour configurer l'authentification à deux facteurs :", 'wpsecuredigits');
+    }
+
+    $output = '<div class="wpsecuredigits-qrcode-message">';
+    $output .= '<p>' . esc_html($message) . '</p>';
+    $output .= '<img src="' . esc_url($qrcode_url) . '" alt="' . esc_attr__('QR-code', 'wpsecuredigits') . '">';
+    $output .= '</div>';
+
+    return $output;
+}
+// usage : echo do_shortcode('[wpsecuredigits_send_qrcode custom_message="Voici votre QR-code personnalisé :"]');
+
+add_shortcode('wpsecuredigits_send_qrcode', 'wpsecuredigits_send_qrcode_shortcode');
+
+// shortcode pour qr-code
+function wpsecuredigits_qrcode_shortcode($atts) {
+    // Vérifiez si l'utilisateur est connecté et a les autorisations nécessaires
+    if (is_user_logged_in() && current_user_can('manage_options')) {
+        // Générez le QR-code pour l'utilisateur connecté
+        $qrcode = wpsecuredigits_generate_qrcode(get_current_user_id());
+        return $qrcode;
+    }
+    return '';
+}
+add_shortcode('wpsecuredigits_qrcode', 'wpsecuredigits_qrcode_shortcode');
+
+// shortcode pour code de securite
+function wpsecuredigits_security_codes_shortcode($atts) {
+    // Vérifiez si l'utilisateur est connecté et a les autorisations nécessaires
+    if (is_user_logged_in() && current_user_can('manage_options')) {
+        // Générez les codes de sécurité pour l'utilisateur connecté
+        $security_codes = wpsecuredigits_generate_security_codes(get_current_user_id());
+        return implode(', ', $security_codes);
+    }
+    return '';
+}
+add_shortcode('wpsecuredigits_security_codes', 'wpsecuredigits_security_codes_shortcode');
+
+/* Fonction pour anonymiser les messages */
+function display_error_message() {
+    $custom_message = get_option('custom_error_message');
+    if (!empty($custom_message)) {
+        return $custom_message;
+    } else {
+        return __("Les informations fournies sont incorrectes ou le compte n'existe pas. Veuillez vérifier vos informations et réessayer.", "my-google-authenticator");
+    }
+}
+// if ($password_incorrect){echo display_anonymous_error_message();} elseif ($account_not_found) { echo display_anonymous_error_message();}
+
+/* PARTIE 2FA GOOGLE */
+
+$qrCodeUrl = $google2fa->getQRCodeGoogleUrl(
+    get_bloginfo('name'),
+    $current_user->user_email,
+    $secret
+);
+
+$verificationCode = $_POST['verification_code'];
+$isValid = $google2fa->verifyCode($secret, $verificationCode);
+
+if ($isValid) {
+    // Code valide, connectez l'utilisateur.
+} else {
+    // Code invalide, affichez un message d'erreur.
+}
+
+$backup_codes = [];
+for ($i = 0; $i < 5; $i++) {
+    $backup_codes[] = wp_generate_password(8, false, false);
+}
+
+// Vérifiez si le code de vérification saisi est un code de secours valide
+if (in_array($verificationCode, $backup_codes)) {
+    // Marquez le code de secours comme utilisé et connectez l'utilisateur
+} else {
+    // Le code de vérification est invalide
+}
 
