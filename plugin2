@@ -59,7 +59,7 @@ function my_secure_login_settings_init() {
     add_settings_section('my_secure_login_general_settings', __('General Settings', 'my_secure_login'), 'my_secure_login_general_settings_section_callback', 'my_secure_login_options');
 
     // Enable plugin functionality
-    add_settings_field('my_secure_login_enabled', __('Enable My Secure Login', 'my_secure_login'), 'my_secure_login_enabled_render', 'my_secure_login_options', 'my_secure_login_general_settings');
+    add_settings_field('my_secure_login_enabled', __('Enable 2FA Authentification', 'my_secure_login'), 'my_secure_login_enabled_render', 'my_secure_login_options', 'my_secure_login_general_settings');
     
     // Customization Settings
     add_settings_section('my_secure_login_customization_settings', __('Customization Settings', 'my_secure_login'), 'my_secure_login_customization_settings_section_callback', 'my_secure_login_options');
@@ -68,30 +68,39 @@ function my_secure_login_settings_init() {
     add_settings_field('my_secure_login_custom_logo_url', __('Custom Logo URL', 'my_secure_login'), 'my_secure_login_custom_logo_url_render', 'my_secure_login_options', 'my_secure_login_customization_settings');
     
     // Spacing
-    add_settings_field('my_secure_login_spacing', __('Spacing', 'my_secure_login'), 'my_secure_login_spacing_render', 'my_secure_login_options', 'my_secure_login_customization_settings');
+    add_settings_field('my_secure_login_spacing', __('Spacing in pixel', 'my_secure_login'), 'my_secure_login_spacing_render', 'my_secure_login_options', 'my_secure_login_customization_settings');
 	
 	    // Whitelist IPs
-    add_settings_field('my_secure_login_whitelist_ips', __('Whitelist IPs', 'my_secure_login'), 'my_secure_login_whitelist_ips_render', 'my_secure_login_options', 'my_secure_login_advanced_settings');
+    add_settings_field('my_secure_login_whitelist_ips', __('Whitelist IPs (IP1,IP2,...)', 'my_secure_login'), 'my_secure_login_whitelist_ips_render', 'my_secure_login_options', 'my_secure_login_advanced_settings');
     
     // Blacklist IPs
-    add_settings_field('my_secure_login_blacklist_ips', __('Blacklist IPs', 'my_secure_login'), 'my_secure_login_blacklist_ips_render', 'my_secure_login_options', 'my_secure_login_advanced_settings');
+    add_settings_field('my_secure_login_blacklist_ips', __('Blacklist IPs (IP1,IP2,...)', 'my_secure_login'), 'my_secure_login_blacklist_ips_render', 'my_secure_login_options', 'my_secure_login_advanced_settings');
     
     // Register settings
     register_setting('my_secure_login_options', 'my_secure_login_options', 'my_secure_login_options_validate');
 
     register_setting('my_secure_login_options', 'my_secure_login_options', 'my_secure_login_options_validate');
     add_settings_section('my_secure_login_general_settings', __('General Settings', 'my_secure_login'), 'my_secure_login_general_settings_section_callback', 'my_secure_login_options');
-    add_settings_field('my_secure_login_secret_key', __('Secret Key', 'my_secure_login'), 'my_secure_login_secret_key_render', 'my_secure_login_options', 'my_secure_login_general_settings');
-    add_settings_field('my_secure_login_digits', __('Digits', 'my_secure_login'), 'my_secure_login_digits_render', 'my_secure_login_options', 'my_secure_login_general_settings');
+    add_settings_field('my_secure_login_digits', __('2FA Digits Numbers', 'my_secure_login'), 'my_secure_login_digits_render', 'my_secure_login_options', 'my_secure_login_general_settings');
     add_settings_field('my_secure_login_time', __('Time Step', 'my_secure_login'), 'my_secure_login_time_render', 'my_secure_login_options', 'my_secure_login_general_settings');
     add_settings_section('my_secure_login_customization_settings', __('Customization Settings', 'my_secure_login'), 'my_secure_login_customization_settings_section_callback', 'my_secure_login_options');
     add_settings_field('my_secure_login_margins', __('Margins', 'my_secure_login'), 'my_secure_login_margins_render', 'my_secure_login_options', 'my_secure_login_customization_settings');
     add_settings_field('my_secure_login_spacing', __('Spacing', 'my_secure_login'), 'my_secure_login_spacing_render', 'my_secure_login_options', 'my_secure_login_customization_settings');
     add_settings_field('my_secure_login_padding', __('Padding', 'my_secure_login'), 'my_secure_login_padding_render', 'my_secure_login_options', 'my_secure_login_customization_settings');
     add_settings_section('my_secure_login_advanced_settings', __('Advanced Settings', 'my_secure_login'), 'my_secure_login_advanced_settings_section_callback', 'my_secure_login_options');
-    add_settings_field('my_secure_login_login_attempts', __('Login Attempts', 'my_secure_login'), 'my_secure_login_login_attempts_render', 'my_secure_login_options', 'my_secure_login_advanced_settings');
+    add_settings_field('my_secure_login_login_attempts', __('Login Attempts before lockout', 'my_secure_login'), 'my_secure_login_login_attempts_render', 'my_secure_login_options', 'my_secure_login_advanced_settings');
     add_settings_field('my_secure_login_lockout_time', __('Lockout Time (minutes)', 'my_secure_login'), 'my_secure_login_lockout_time_render', 'my_secure_login_options', 'my_secure_login_advanced_settings');
-    add_settings_field('my_secure_login_unlock_request', __('Unlock Request', 'my_secure_login'), 'my_secure_login_unlock_request_render', 'my_secure_login_options', 'my_secure_login_advanced_settings');
+   
+add_settings_field(
+    'login_lockout_time',
+    __('Temps de verrouillage de la connexion (minutes)', 'my-secure-login'),
+    'my_secure_login_login_lockout_time_render',
+    'my_secure_login',
+    'my_secure_login_section'
+);
+
+
+   add_settings_field('my_secure_login_unlock_request', __('Unlock Request', 'my_secure_login'), 'my_secure_login_unlock_request_render', 'my_secure_login_options', 'my_secure_login_advanced_settings');
     add_settings_field('my_secure_login_whitelisted_ips', __('Whitelisted IPs', 'my_secure_login'), 'my_secure_login_whitelisted_ips_render', 'my_secure_login_options', 'my_secure_login_advanced_settings');
     register_setting('my_secure_login_options', 'my_secure_login_options', 'my_secure_login_options_validate');
 
@@ -101,6 +110,63 @@ function my_secure_login_enable_render() {
     $options = get_option('my_secure_login_options');
     ?>
     <input type='checkbox' name='my_secure_login_options[enable]' <?php checked($options['enable'], 1); ?> value='1'>
+    <?php
+}
+
+// validité du code secret
+function my_secure_login_time_render() {
+    $options = get_option('my_secure_login_options');
+    ?>
+    <input type='number' name='my_secure_login_options[time]' value='<?php echo isset($options['time']) ? $options['time'] : ''; ?>' min='1'>
+    <?php
+}
+
+function my_secure_login_custom_logo_url_render() {
+    $options = get_option('my_secure_login_options');
+    ?>
+     <input type='text' name='my_secure_login_options[custom_logo_url]' value='<?php echo isset($options['custom_logo_url']) ? $options['custom_logo_url'] : ''; ?>' size='75'>
+    <?php
+}
+
+function my_secure_login_padding_render() {
+    $options = get_option('my_secure_login_options');
+    ?>
+    <input type='number' name='my_secure_login_options[padding]' value='<?php echo isset($options['padding']) ? $options['padding'] : ''; ?>' min='0' max='50'>
+    <?php
+}
+
+function my_secure_login_whitelist_ips_render() {
+    $options = get_option('my_secure_login_options');
+    ?>
+    <input type='text' name='my_secure_login_options[whitelist_ips]' value='<?php echo isset($options['whitelist_ips']) ? $options['whitelist_ips'] : ''; ?>' size='75'>
+    <?php
+}
+
+function my_secure_login_blacklist_ips_render() {
+    $options = get_option('my_secure_login_options');
+    ?>
+    <input type='text' name='my_secure_login_options[blacklist_ips]' value='<?php echo isset($options['blacklist_ips']) ? $options['blacklist_ips'] : ''; ?>' size='75'>
+    <?php
+}
+
+function my_secure_login_login_attempts_render() {
+    $options = get_option('my_secure_login_options');
+    ?>
+    <input type='number' name='my_secure_login_options[login_attempts]' value='<?php echo isset($options['login_attempts']) ? $options['login_attempts'] : ''; ?>' min="1">
+    <?php
+}
+
+function my_secure_login_login_lockout_time_render() {
+    $options = get_option('my_secure_login_options');
+    ?>
+    <input type='number' name='my_secure_login_options[login_lockout_time]' value='<?php echo $options['login_lockout_time']; ?>' max='180' min="5">
+    <?php
+}
+
+function my_secure_login_unlock_request_render() {
+    $options = get_option('my_secure_login_options');
+    ?>
+    <input type='checkbox' name='my_secure_login_options[unlock_request]' <?php checked(isset($options['unlock_request']) ? $options['unlock_request'] : 0, 1); ?> value='1'>
     <?php
 }
 
@@ -173,18 +239,6 @@ function my_secure_login_admin_footer_text($text)
 }
 add_filter('admin_footer_text', 'my_secure_login_admin_footer_text');
 
-function my_secure_login_enabled_render() {
-    // Votre code pour afficher les options de réglage ici.
-}
-
-add_settings_field(
-    'my_secure_login_enabled', // ID du champ
-    'Enable My Secure Login', // Titre du champ
-    'my_secure_login_enabled_render', // Fonction de rappel pour afficher le champ
-    'my_secure_login', // Page sur laquelle le champ sera affiché
-    'my_secure_login_section' // Section à laquelle le champ appartient
-);
-
 
 function my_secure_login_options_menu() {
 /* */
@@ -251,24 +305,6 @@ function my_secure_login_admin_menu()
     add_dashboard_page(__('My Secure Login Dashboard', 'my-secure-login'), __('My Secure Login Dashboard', 'my-secure-login'), 'manage_options', 'my_secure_login_dashboard', 'my_secure_login_dashboard_page');
 }
 
-/* function my_secure_login_options_page()
-{
-    ?>
-    <div class="wrap">
-        <h2><?php _e('My Secure Login Settings', 'my-secure-login'); ?></h2>
-        <form action="options.php" method="post">
-            <?php settings_fields('my_secure_login_options'); ?>
-            <?php do_settings_sections('my_secure_login_options'); ?>
-            <p class="submit">
-                <?php submit_button(); ?>
-            </p>
-        </form>
-    </div>
-    <?php
-}
-  */
-
- 
 function my_secure_login_register_settings_fields() {
     add_settings_field(
         'my_secure_login_enabled',
@@ -281,18 +317,31 @@ function my_secure_login_register_settings_fields() {
 }
 add_action('admin_init', 'my_secure_login_register_settings_fields');
 
- 
-
-function my_secure_login_general_settings_section_callback() {
-    echo __('General settings for My Secure Login plugin.', 'my_secure_login');
+ function my_secure_login_enabled_render() {
+    $options = get_option('my_secure_login_options');
+    ?>
+    <input type='checkbox' name='my_secure_login_options[enabled]' <?php checked($options['enabled'], 1); ?> value='1'>
+    <?php
 }
 
+function my_secure_login_digits_render() {
+    $options = get_option('my_secure_login_options');
+    ?>
+    <input type='number' name='my_secure_login_options[digits]' value='<?php echo $options['digits']; ?>' min='4' max='10'>
+    <?php
+}
+
+  
+function my_secure_login_general_settings_section_callback() {
+    echo __('', 'my_secure_login');
+}
+ 
 function my_secure_login_customization_settings_section_callback() {
-    echo __('Customize the appearance of the login form.', 'my_secure_login');
+    echo __('', 'my_secure_login');
 }
 
 function my_secure_login_advanced_settings_section_callback() {
-    echo __('Advanced settings for My Secure Login plugin.', 'my_secure_login');
+    echo __('', 'my_secure_login');
 }
 
 
@@ -349,7 +398,7 @@ function my_secure_login_options_page() {
     ?>
     <form action='options.php' method='post'>
 
-        <h2>My Secure Login</h2>
+        <h1>My Secure Login</h1>
 
         <?php
         settings_fields('my_secure_login_options');
