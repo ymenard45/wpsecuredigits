@@ -908,8 +908,12 @@ function my_google_authenticator_margin_render() {
 }
 
 function my_google_authenticator_spacing_render() {
-    $options = get_option('my_google_authenticator_settings');
-    echo '<input type="number" name="my_google_authenticator_settings[spacing]" value="' . esc_attr
+    $options = get_option('my_google_authenticator_options');
+    $spacing = isset($options['spacing']) ? $options['spacing'] : '';
+    ?>
+    <input type="text" name="my_google_authenticator_options[spacing]" value="<?php echo esc_attr($spacing); ?>" />
+    <p class="description"><?php _e('Définissez les espacements entre les éléments de la page de connexion. Par exemple: 10px 20px 30px 40px.', 'my-google-authenticator'); ?></p>
+    <?php
 }
 
 /* Afficher la case à cocher "Autoriser la désactivation de 2FA" */
@@ -1088,22 +1092,6 @@ add_action('admin_init', 'wpsecuredigits_settings_init');
 
 // Fonction pour afficher la page des paramètres
  
-function wpsecuredigits_render_settings_page() {
-    ?>
-    <div class="wrap">
-        <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
-        <form action="options.php" method="post">
-            <?php
-            settings_fields('wpsecuredigits_settings_group');
-            do_settings_sections('wpsecuredigits_settings');
-            submit_button();
-            ?>
-        </form>
-    </div>
-    <?php
-}
-
-
 /* PARTIE 2FA GOOGLE */
 
 // generation secret pour un user
@@ -1130,7 +1118,7 @@ function wpsecuredigits_generate_qr_code($user_id, $secret) {
 
 function wpsecuredigits_authenticate_user($user, $username, $password) {
   
-    // (Code pour vérifier le nom d'utilisateur et le mot de passe)
+    // (Code pour vérifier le nom d'utilisateur et le mot de passe) 
 	// Vérifiez d'abord si les champs ne sont pas vides
     if (empty($username) || empty($password)) {
         return new WP_Error('empty_fields', __('Le nom d\'utilisateur et le mot de passe sont requis.', 'wpsecuredigits'));
@@ -1146,19 +1134,6 @@ function wpsecuredigits_authenticate_user($user, $username, $password) {
 
     $user_id = $user->ID;
     $secret = get_user_meta($user_id, 'wpsecuredigits_secret', true);
-	
-    // ...
-
-    $user_id = $user->ID;
-    $secret = get_user_meta($user_id, 'wpsecuredigits_secret', true);
-
-function wpsecuredigits_generate_backup_codes($user_id) {
-    $backup_codes = [];
-    for ($i = 0; $i < 5; $i++) {
-        $backup_codes[] = wp_generate_password(8, false, false);
-    }
-
-    update_user_meta($user_id, 'wpsecuredigits_backup_codes', $backup_codes);
 }
 
 add_filter('authenticate', 'wpsecuredigits_authenticate_user', 30, 3);
@@ -1175,7 +1150,8 @@ function wpsecuredigits_generate_backup_codes($user_id) {
     update_user_meta($user_id, 'wpsecuredigits_backup_codes', $backup_codes);
 }
 
-// reintialiser les codes de secoursfunction wpsecuredigits_reset_backup_codes_callback() {
+// reintialiser les codes de secours
+function wpsecuredigits_reset_backup_codes_callback() {
     $user_id = get_current_user_id();
     wpsecuredigits_generate_backup_codes($user_id);
 
@@ -1220,6 +1196,7 @@ function wpsecuredigits_add_2fa_field() {
 }
 
 add_action('login_form', 'wpsecuredigits_add_2fa_field');
+
 
 /* ---- Integration logo ----*/
 function wpsecuredigits_login_logo() {
