@@ -46,6 +46,25 @@ add_action('admin_enqueue_scripts', 'my_google_authenticator_enqueue_admin_scrip
 
 add_filter('xmlrpc_enabled', '__return_false');
 
+/* OPTIONS */
+
+function wpsecuredigits_general_settings_section_callback() {
+    echo '<p>';
+    _e('General settings for the WP Securedigits plugin.', 'wpsecuredigits');
+    echo '</p>';
+}
+
+
+function wpsecuredigits_customization_settings_section_callback() {
+    echo '<p>' . __('Customization settings for the plugin.', 'wpsecuredigits') . '</p>';
+}
+
+function wpsecuredigits_advanced_settings_section_callback() {
+    echo '<p>' . __('Advanced settings for the plugin.', 'wpsecuredigits') . '</p>';
+}
+
+add_action('admin_init', 'wpsecuredigits_settings_init');
+
 
 // Vos chaînes de texte originales
 $menu_title = __('Mon Google Authenticator', 'mon-google-authenticator');
